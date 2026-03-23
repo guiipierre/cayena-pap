@@ -47,6 +47,16 @@
       </div>
     </div>
 
+    <div class="scr" id="scr-hist">
+      <div class="hist-wrap">
+        <div class="hist-title">História</div>
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-hdr">Visitas recentes (todos os clientes)</div>
+        </div>
+        <div id="hist-global"></div>
+      </div>
+    </div>
+
     <div class="scr" id="scr-map">
       <div class="mwrap">
         <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Buscar bairro ou endereço..."></div>
@@ -139,12 +149,42 @@
     </div>
   </div>
 
-  <nav class="nav">
-    <div class="ni on" id="ni-ana" onclick="goScr('ana')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span>Analytics</span></div>
-    <div class="ni" id="ni-clis" onclick="openClisTab()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clientes</span></div>
-    <div class="nav-fab" onclick="openCad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
-    <div class="ni" id="ni-map" onclick="goScr('map')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg><span>Mapa</span></div>
+  <nav class="nav-shell" aria-label="Navegação principal">
+    <button type="button" class="nav-fab" onclick="openCad()" aria-label="Novo cadastro">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <div class="nav-bar">
+      <button type="button" class="ni on" id="ni-ana" onclick="goScr('ana')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 1 0 10 10H12V2z"/><path d="M22 12A10 10 0 0 0 12 2v10h10z"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button type="button" class="ni" id="ni-hist" onclick="openHistTab()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span>História</span>
+      </button>
+      <span class="nav-slot" aria-hidden="true"></span>
+      <button type="button" class="ni" id="ni-clis" onclick="openClisTab()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Clientes</span>
+      </button>
+      <button type="button" class="ni" id="ni-more" onclick="toggleMore()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="16" x2="20" y2="16"/></svg>
+        <span>Mais</span>
+      </button>
+    </div>
   </nav>
+</div>
+
+<div class="ov" id="ov-more" onclick="if(event.target.id==='ov-more')closeOv('ov-more')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit">Mais opções</div><div class="scls" onclick="closeOv('ov-more')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="more-list">
+      <button type="button" class="more-item" onclick="closeOv('ov-more');goScr('map')">Mapa</button>
+      <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Notificações</button>
+      <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Configurações</button>
+    </div>
+  </div>
 </div>
 
 <div class="ov" id="ov-cad" onclick="if(event.target.id==='ov-cad')closeCad()">

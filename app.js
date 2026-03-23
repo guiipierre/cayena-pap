@@ -121,9 +121,12 @@ function getCliById(id) {
 }
 
 function goScr(s) {
+  const om = document.getElementById('ov-more');
+  if (om) om.classList.remove('on');
   document.querySelectorAll('.scr').forEach((e) => e.classList.remove('on'));
   document.querySelectorAll('.ni').forEach((e) => e.classList.remove('on'));
-  document.getElementById('scr-' + s).classList.add('on');
+  const scr = document.getElementById('scr-' + s);
+  if (scr) scr.classList.add('on');
   const ni = document.getElementById('ni-' + s);
   if (ni) ni.classList.add('on');
   closePopup();
@@ -664,6 +667,56 @@ function filterClis() {
 function openClisTab() {
   goScr('clis');
   renderCliList([...DB]);
+}
+
+function openHistTab() {
+  renderGlobalHist();
+  goScr('hist');
+}
+
+function renderGlobalHist() {
+  const el = document.getElementById('hist-global');
+  if (!el) return;
+  const rows = [];
+  DB.forEach((c) => {
+    (c.visitas || []).forEach((v) => {
+      rows.push({ cliente: c.nome, v });
+    });
+  });
+  rows.sort((a, b) => {
+    const pa = a.v.data.split('/').map(Number);
+    const pb = b.v.data.split('/').map(Number);
+    const da = new Date(pa[2], pa[1] - 1, pa[0]);
+    const db = new Date(pb[2], pb[1] - 1, pb[0]);
+    return db - da;
+  });
+  if (!rows.length) {
+    el.innerHTML =
+      '<div class="empty"><div class="emico">📋</div>Nenhuma visita registrada ainda.</div>';
+    return;
+  }
+  const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
+  const cls = { conv: 'vconv', nao: 'vnao', reag: 'vreag', aus: 'vreag' };
+  el.innerHTML = rows
+    .map(
+      (r) =>
+        '<div class="vc"><div class="vtop"><div class="vdate">' +
+        r.v.data +
+        '</div><div class="vres ' +
+        (cls[r.v.res] || 'vreag') +
+        '">' +
+        (lbl[r.v.res] || r.v.res) +
+        '</div></div><div class="vrep">🏪 ' +
+        r.cliente +
+        '</div>' +
+        (r.v.obs ? '<div class="vobs">' + r.v.obs + '</div>' : '') +
+        '</div>'
+    )
+    .join('');
+}
+
+function toggleMore() {
+  document.getElementById('ov-more').classList.add('on');
 }
 
 document.getElementById('c-cnpj').addEventListener('input', (e) => {
