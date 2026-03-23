@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>cayena PAP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <header class="hdr">
+    <div class="hdr-left">
+      <div class="hdr-logo">cayena</div>
+      <div class="hdr-sub">Consultor de Vendas</div>
+    </div>
+    <div class="hdr-right">
+      <div class="hdr-today">Hoje: <b id="cnt">7</b></div>
+      <div class="hdr-av">RV</div>
+    </div>
+  </header>
+
+  <div class="screens">
+    <div class="scr on" id="scr-ana">
+      <div class="a-pad">
+        <div class="a-date" id="gdate"></div>
+        <div class="a-name">Olá, <span>Rafael</span> 👋</div>
+        <div class="kgrid">
+          <div class="kc big"><div class="kl">Cadastros este mês</div><div class="kv">143</div><div class="kt kt-up">↑ 18% vs mês anterior</div></div>
+          <div class="kc"><div class="kl">Esta semana</div><div class="kv" style="font-size:26px">34</div><div class="kt kt-up">↑ 6</div></div>
+          <div class="kc"><div class="kl">Hoje</div><div class="kv" id="khoje" style="font-size:26px">7</div><div class="kt kt-warn">Meta: 10</div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-hdr">Cadastros — últimos 5 dias <a>Ver tudo →</a></div>
+          <div class="br"><span class="bday">Seg</span><div class="btrack"><div class="bfill" style="width:80%"></div></div><span class="bnum">8</span></div>
+          <div class="br"><span class="bday">Ter</span><div class="btrack"><div class="bfill" style="width:60%"></div></div><span class="bnum">6</span></div>
+          <div class="br"><span class="bday">Qua</span><div class="btrack"><div class="bfill" style="width:100%"></div></div><span class="bnum">10</span></div>
+          <div class="br"><span class="bday">Qui</span><div class="btrack"><div class="bfill dim" style="width:30%"></div></div><span class="bnum">3</span></div>
+          <div class="br"><span class="bday">Sex</span><div class="btrack"><div class="bfill" style="width:70%"></div></div><span class="bnum">7</span></div>
+        </div>
+        <div class="recent-hdr">Últimos cadastros <a>Ver todos →</a></div>
+        <div class="arow" onclick="openCli(0)"><div class="aico">🍕</div><div class="ainf"><div class="an">Pizzaria do Zé</div><div class="as">Vila Madalena · há 23 min</div></div><span class="badge b-novo">NOVO</span></div>
+        <div class="arow" onclick="openCli(1)"><div class="aico">🥩</div><div class="ainf"><div class="an">Açougue Central</div><div class="as">Pinheiros · há 1h</div></div><span class="badge b-reat">REATIVADO</span></div>
+        <div class="arow" onclick="openCli(2)"><div class="aico">🍺</div><div class="ainf"><div class="an">Bar do Carlinhos</div><div class="as">Consolação · há 2h</div></div><span class="badge b-reat">REATIVADO</span></div>
+        <div class="arow" onclick="openCli(3)"><div class="aico">🥗</div><div class="ainf"><div class="an">Restaurante Vegano SP</div><div class="as">Jardins · há 3h</div></div><span class="badge b-novo">NOVO</span></div>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-map">
+      <div class="mwrap">
+        <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Buscar bairro ou endereço..."></div>
+        <div class="fmap">
+          <div class="mgrid"></div>
+          <div class="rd" style="top:28%;left:0;right:0;height:3px;transform:rotate(2deg)"></div>
+          <div class="rd" style="top:52%;left:0;right:0;height:2px;transform:rotate(-1deg)"></div>
+          <div class="rd" style="top:72%;left:0;right:0;height:3px;transform:rotate(1deg)"></div>
+          <div class="rd" style="left:18%;top:0;bottom:0;width:2px"></div>
+          <div class="rd" style="left:48%;top:0;bottom:0;width:3px"></div>
+          <div class="rd" style="left:76%;top:0;bottom:0;width:2px"></div>
+          <div class="rd" style="top:42%;left:18%;right:28%;height:2px;transform:rotate(3deg)"></div>
+          <div class="upin" style="left:49%;top:50%"><div class="uring"></div><div class="udot"></div></div>
+          <div class="pin pn" style="left:34%;top:36%" onclick="pinClick(0,'Pizzaria do Zé','R. Fradique Coutinho, 88 — Vila Madalena','novo')"><div class="pd"></div><div class="pt"></div></div>
+          <div class="pin pn" style="left:63%;top:26%" onclick="pinClick(3,'Restaurante Vegano SP','Al. Itu, 220 — Jardins','novo')"><div class="pd"></div><div class="pt"></div></div>
+          <div class="pin pn" style="left:25%;top:65%" onclick="pinClick(-1,'Lanchonete Rápida','R. Teodoro Sampaio, 500','novo')"><div class="pd"></div><div class="pt"></div></div>
+          <div class="pin pr" style="left:58%;top:62%" onclick="pinClick(1,'Açougue Central','R. Oscar Freire, 55 — Pinheiros','reat')"><div class="pd"></div><div class="pt"></div></div>
+          <div class="pin pr" style="left:78%;top:42%" onclick="pinClick(2,'Bar do Carlinhos','R. Pamplona, 300 — Bela Vista','reat')"><div class="pd"></div><div class="pt"></div></div>
+          <div class="pin pr" style="left:42%;top:78%" onclick="pinClick(-1,'Mercearia Lima','R. Haddock Lobo, 44','reat')"><div class="pd"></div><div class="pt"></div></div>
+        </div>
+        <div class="mleg">
+          <div class="li"><div class="ld" style="background:var(--orange)"></div>Novo cadastro</div>
+          <div class="li"><div class="ld" style="background:var(--dark)"></div>Reativado (visitar)</div>
+          <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
+        </div>
+        <div class="mact">
+          <div class="mbtn" onclick="toast('Centralizando...')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+          <div class="mbtn orange" onclick="openCad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+        </div>
+        <div class="popup" id="popup">
+          <div class="ppn" id="ppn"></div><div class="ppa" id="ppa"></div><div class="ppbw" id="ppbw"></div>
+          <div class="ppr"><div class="ppb out" onclick="closePopup()">Fechar</div><div class="ppb fill" onclick="pinAct()">Ver detalhes</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-clis">
+      <div class="cli-wrap">
+        <div class="cli-header-title">Clientes</div>
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="cli-search" placeholder="Buscar nome, CNPJ ou bairro..." oninput="filterClis()">
+        </div>
+        <div class="cli-count" id="cli-count"></div>
+        <div id="cli-list"></div>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-cli">
+      <div class="cdet">
+        <div class="dhdr">
+          <div class="backbtn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div class="dname" id="dname">Cliente</div>
+          <span class="badge" id="dbadge"></span>
+        </div>
+        <div class="tabs">
+          <div class="tab on" id="t-info" onclick="swTab('info')">Info</div>
+          <div class="tab" id="t-hist" onclick="swTab('hist')">História</div>
+          <div class="tab" id="t-campos" onclick="swTab('campos')">Campos adicionais</div>
+        </div>
+        <div class="tpanels">
+          <div class="tp on" id="p-info">
+            <div class="minimap"><div class="mmg"></div><div class="mmpin"><div class="mmpd"></div><div class="mmpt"></div></div><div class="mmaddr" id="mmaddr"></div></div>
+            <div class="icard" id="dc-dados"></div>
+            <div class="icard" id="dc-cont"></div>
+            <div class="icard" id="dc-end"></div>
+          </div>
+          <div class="tp" id="p-hist"><div id="hcont"></div></div>
+          <div class="tp" id="p-campos">
+            <div class="fcoming">
+              <div class="fcico">⚙️</div>
+              <div class="fctit">Campos configuráveis</div>
+              <div class="fcsub">O admin poderá criar campos personalizados aqui — limite de crédito, prazo de pagamento, método preferido e outras informações do cliente.</div>
+              <div class="fprev">
+                <div class="fpr"><span class="fprl">Limite aprovado</span><span class="fprv">em breve</span></div>
+                <div class="fpr"><span class="fprl">Prazo de pagamento</span><span class="fprv">em breve</span></div>
+                <div class="fpr"><span class="fprl">Método de pagamento</span><span class="fprv">em breve</span></div>
+                <div class="fpr"><span class="fprl">Tipo de cozinha</span><span class="fprv">em breve</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="sfoot" id="sfoot" style="display:none">
+          <button class="btnvis" onclick="openVis()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Registrar visita
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <div class="ni on" id="ni-ana" onclick="goScr('ana')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg><span>Analytics</span></div>
+    <div class="ni" id="ni-clis" onclick="openClisTab()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg><span>Clientes</span></div>
+    <div class="nav-fab" onclick="openCad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+    <div class="ni" id="ni-map" onclick="goScr('map')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg><span>Mapa</span></div>
+  </nav>
+</div>
+
+<div class="ov" id="ov-cad" onclick="if(event.target.id==='ov-cad')closeCad()">
+  <div class="sheet" id="sh-cad">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit" id="cadtit">Novo Cliente</div><div class="scls" onclick="closeCad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="steps" id="cadsteps"><div class="sd on" id="sd1"></div><div class="sd" id="sd2"></div><div class="sd" id="sd3"></div></div>
+    <div class="slbl" id="cadslbl">Passo 1 de 3 — Dados do estabelecimento</div>
+    <div class="suc" id="cadsuc"><div class="sucico">✓</div><div class="suctit">Cadastro realizado!</div><div class="sucsub">O cliente foi salvo e o pin já aparece no mapa.</div><div class="succnpj" id="succnpj"></div></div>
+    <div class="fb" id="cadfb">
+      <div class="fs on" id="cs1">
+        <div class="fg"><div class="flbl">Nome do estabelecimento <span class="req">*</span></div><input class="fi" id="c-nome" type="text" placeholder="Ex: Restaurante do João"></div>
+        <div class="fg"><div class="flbl">CNPJ <span class="req">*</span></div><input class="fi" id="c-cnpj" type="text" placeholder="00.000.000/0000-00" maxlength="18"></div>
+        <div class="fg"><div class="flbl">Telefone <span class="req">*</span></div><input class="fi" id="c-tel" type="tel" placeholder="(11) 99999-9999" maxlength="15"></div>
+        <div class="fg"><div class="flbl">Tipo de estabelecimento</div><select class="fi" id="c-tipo" style="height:56px"><option value="">Selecione...</option><option>Restaurante</option><option>Bar / Boteco</option><option>Padaria / Confeitaria</option><option>Lanchonete</option><option>Açougue</option><option>Mercado / Mercearia</option><option>Hotel / Pousada</option><option>Outro</option></select></div>
+      </div>
+      <div class="fs" id="cs2">
+        <div class="fg"><div class="flbl">CEP <span class="req">*</span></div><input class="fi" id="c-cep" type="text" placeholder="00000-000" maxlength="9"></div>
+        <div class="fr21"><div class="fg"><div class="flbl">Rua / Av. <span class="req">*</span></div><input class="fi" id="c-rua" type="text" placeholder="R. das Flores"></div><div class="fg"><div class="flbl">Número <span class="req">*</span></div><input class="fi" id="c-num" type="text" placeholder="123"></div></div>
+        <div class="fg"><div class="flbl">Complemento</div><input class="fi" id="c-comp" type="text" placeholder="Sala 2, fundos..."></div>
+        <div class="fg"><div class="flbl">Bairro <span class="req">*</span></div><input class="fi" id="c-bairro" type="text" placeholder="Vila Madalena"></div>
+        <div class="fr2"><div class="fg"><div class="flbl">Cidade <span class="req">*</span></div><input class="fi" id="c-cidade" value="São Paulo" type="text"></div><div class="fg"><div class="flbl">Estado</div><input class="fi" id="c-estado" value="SP" type="text" maxlength="2"></div></div>
+      </div>
+      <div class="fs" id="cs3">
+        <div class="fg">
+          <div class="flbl">Localização GPS <span class="req">*</span></div>
+          <div class="cbox" id="cbox"><div class="cinn"><div><div class="ctit2">Coordenadas do local</div><div class="cval" id="cval">Aguardando captura...</div></div><button class="capbtn" id="capbtn" onclick="captureGPS()">Capturar</button></div><div class="cacc" id="cacc"></div></div>
+          <div class="mprev" id="mprev"><div class="mpg"></div><div class="mpp"><div class="mppd"></div><div class="mppt"></div></div><div class="mplbl" id="mplbl"></div></div>
+        </div>
+        <div class="fr2"><div class="fg"><div class="flbl">Latitude</div><input class="fi" id="c-lat" type="text" placeholder="-23.5505" readonly></div><div class="fg"><div class="flbl">Longitude</div><input class="fi" id="c-lng" type="text" placeholder="-46.6333" readonly></div></div>
+        <div class="fg"><div class="flbl">Observações</div><textarea class="fi" id="c-obs" placeholder="Horário de funcionamento, responsável..."></textarea></div>
+      </div>
+    </div>
+    <div class="sfoo" id="cadfoo"><button class="btnp" id="cadnext" onclick="cadNext()">Próximo</button><button class="btns" id="cadback" onclick="cadBack()" style="display:none">Voltar</button></div>
+  </div>
+</div>
+
+<div class="ov" id="ov-vis" onclick="if(event.target.id==='ov-vis')closeOv('ov-vis')">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit">Registrar Visita</div><div class="scls" onclick="closeOv('ov-vis')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="slbl" style="padding-top:2px">Cliente: <b id="vclinome" style="color:var(--cravo)"></b></div>
+    <div class="suc" id="vissuc"><div class="sucico">📋</div><div class="suctit">Visita registrada!</div><div class="sucsub">Salva no histórico do cliente.</div></div>
+    <div class="vform" id="vformbody">
+      <div class="fg">
+        <div class="flbl">Celular do comprador <span class="req">*</span></div>
+        <div class="fi-wrap" id="fw-cel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.77a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          <input type="tel" id="v-cel" placeholder="(11) 99999-9999" maxlength="15">
+        </div>
+        <div class="err-msg" id="err-cel">Campo obrigatório</div>
+      </div>
+      <div class="fg">
+        <div class="flbl">Nome do comprador <span class="req">*</span></div>
+        <div class="fi-wrap" id="fw-nome">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <input type="text" id="v-nome" placeholder="Ex: João da Padaria">
+        </div>
+        <div class="err-msg" id="err-nome">Campo obrigatório</div>
+      </div>
+      <div>
+        <div class="vsec-title">Estabelecimento</div>
+        <div class="vsec-line"></div>
+        <div class="fg" style="margin-bottom:16px">
+          <div class="flbl">Tamanho</div>
+          <div class="seg-ctrl">
+            <div class="seg-opt on" id="seg-peq" onclick="selSeg('peq')">🏪 Pequeno</div>
+            <div class="seg-opt" id="seg-gra" onclick="selSeg('gra')">🏬 Grande</div>
+          </div>
+        </div>
+        <div class="fg">
+          <div class="flbl">Tipo de Estabelecimento</div>
+          <div class="chip-grid" id="chip-grid">
+            <div class="chip-opt" onclick="selChip(this)">PF/Kilo</div>
+            <div class="chip-opt" onclick="selChip(this)">Pizza/Esfirra</div>
+            <div class="chip-opt" onclick="selChip(this)">Lanche</div>
+            <div class="chip-opt" onclick="selChip(this)">Salgados</div>
+            <div class="chip-opt" onclick="selChip(this)">Padaria</div>
+            <div class="chip-opt" onclick="selChip(this)">Bar</div>
+            <div class="chip-opt" onclick="selChip(this)">Churrasco</div>
+            <div class="chip-opt" onclick="selChip(this)">Japonês</div>
+            <div class="chip-opt" onclick="selChip(this)">Outros</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="vsec-title">Status da Visita</div>
+        <div class="vsec-line"></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="status-card" id="sc-promo" onclick="togSC('sc-promo')">
+            <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+            <div class="sc-body"><div class="sc-label">Enviar promoções</div><div class="sc-sub">Adicionar ao grupo de promos</div></div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+          </div>
+          <div class="status-card" id="sc-ausente" onclick="togSC('sc-ausente')">
+            <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+            <div class="sc-body"><div class="sc-label">Comprador não estava</div><div class="sc-sub">Nenhum contato realizado</div></div>
+            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+          </div>
+        </div>
+      </div>
+      <div class="vis-obs-wrap">
+        <div class="flbl">Observações</div>
+        <textarea class="fi" id="v-obs" placeholder="O que foi discutido, próximos passos, produtos de interesse..."></textarea>
+      </div>
+    </div>
+    <div class="sfoo" id="visfoo"><button class="btnp" onclick="subVis()">Registrar Visita</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toastel"></div>
+<script src="app.js" defer></script>
+</body>
+</html>
