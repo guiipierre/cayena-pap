@@ -22,10 +22,9 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 html{height:100%}
-html,body{width:100%;height:100%;min-height:100%;min-height:100dvh;background:var(--cream);font-family:'Rethink Sans',sans-serif;color:var(--cravo);overflow:hidden;-webkit-text-size-adjust:100%;overscroll-behavior:none}
-/* Altura do app = viewport real (dvh) para o flex interno (.screens) poder limitar e liberar scroll */
-/* padding-bottom reserva espaço da barra fixa (nav não participa do fluxo do scroll) */
-#app{width:100%;max-width:430px;margin:0 auto;display:flex;flex-direction:column;background:var(--cream);overflow:hidden;position:relative;min-height:0;height:100%;min-height:100vh;min-height:100dvh;max-height:100dvh;padding-bottom:var(--nav-stack);box-sizing:border-box}
+html,body{width:100%;height:100%;min-height:100%;min-height:100dvh;background:var(--cream);font-family:'Rethink Sans',sans-serif;color:var(--cravo);overflow:hidden;-webkit-text-size-adjust:100%}
+/* Sem padding no #app: faixa “vazia” embaixo ficava FORA do .scr — o dedo não rolava. O espaço da nav vai no padding interno do .scr. */
+#app{width:100%;max-width:430px;margin:0 auto;display:flex;flex-direction:column;background:var(--cream);overflow:hidden;position:relative;min-height:0;height:100%;min-height:100vh;min-height:100dvh;max-height:100dvh;box-sizing:border-box}
 
 .hdr{height:var(--hdr);background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:20}
 .hdr-logo{font-family:'Rethink Sans',sans-serif;font-weight:700;font-size:22px;color:var(--orange);letter-spacing:-.3px;line-height:1}
@@ -37,12 +36,14 @@ html,body{width:100%;height:100%;min-height:100%;min-height:100dvh;background:va
 .online-dot{width:8px;height:8px;border-radius:50%;background:var(--orange);flex-shrink:0}
 
 /* min-height:0 no flex permite o filho (.scr) ter altura limitada e rolar por dentro */
-.screens{flex:1 1 0%;min-height:0;overflow:hidden;position:relative}
-/* transform em container de scroll quebra rolagem em alguns WebKit; animação só com opacity */
-.scr{position:absolute;left:0;right:0;top:0;bottom:0;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;padding-bottom:max(16px, env(safe-area-inset-bottom, 0px));opacity:0;pointer-events:none;transition:opacity .22s ease}
-.scr.on{opacity:1;pointer-events:auto}
-#scr-cli{padding:0!important;padding-bottom:0!important}
-#scr-map{padding:0!important}
+/* isolation + z-index: tela ativa SEMPRE por cima — evita WebKit “comer” o scroll com .scr invisíveis em cima */
+.screens{flex:1 1 0%;min-height:0;overflow:hidden;position:relative;isolation:isolate}
+.scr{position:absolute;left:0;right:0;top:0;bottom:0;min-height:0;z-index:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-bottom:calc(var(--nav-stack) + 16px);opacity:0;pointer-events:none;transition:opacity .22s ease;}
+.scr.on{z-index:10;opacity:1;pointer-events:auto}
+/* Cliente: só .tp rola — evita dois scrolls competindo (meio/baixo “travando”) */
+#scr-cli{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
+/* Mapa: uma coluna de scroll só (mwrap/fmap) */
+#scr-map{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
 
 /* Barra inferior fixa no viewport — não rola com o conteúdo; FAB central “flutuando” */
 .nav-shell{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:100%;max-width:430px;z-index:100;pointer-events:none;overflow:visible}
@@ -174,9 +175,9 @@ html,body{width:100%;height:100%;min-height:100%;min-height:100dvh;background:va
 .tabs{display:flex;background:var(--white);border-bottom:1px solid var(--gergelim);flex-shrink:0}
 .tab{flex:1;padding:12px 8px;text-align:center;font-size:12px;font-weight:500;color:var(--cardamomo);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s;font-family:'Rethink Sans',sans-serif;touch-action:manipulation;min-height:44px;display:flex;align-items:center;justify-content:center}
 .tab.on{color:var(--orange);border-bottom-color:var(--orange);font-weight:700}
-.tpanels{flex:1 1 0%;min-height:0;overflow:hidden;position:relative}
-.tp{position:absolute;left:0;right:0;top:0;bottom:0;min-height:0;overflow-y:auto;overscroll-behavior-y:contain;touch-action:pan-y;padding:18px 18px 110px;padding-bottom:calc(110px + env(safe-area-inset-bottom, 0px));opacity:0;pointer-events:none;transition:opacity .18s ease;-webkit-overflow-scrolling:touch;background:var(--cream)}
-.tp.on{opacity:1;pointer-events:auto}
+.tpanels{flex:1 1 0%;min-height:0;overflow:hidden;position:relative;isolation:isolate}
+.tp{position:absolute;left:0;right:0;top:0;bottom:0;min-height:0;z-index:1;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;padding:18px 18px 110px;padding-bottom:calc(110px + env(safe-area-inset-bottom, 0px));opacity:0;pointer-events:none;transition:opacity .18s ease;background:var(--cream)}
+.tp.on{z-index:2;opacity:1;pointer-events:auto}
 .minimap{height:110px;background:#2a1f22;border-radius:var(--r);overflow:hidden;margin-bottom:16px;position:relative;border:1px solid var(--gergelim)}
 .mmg{position:absolute;inset:0;background-image:linear-gradient(rgba(255,71,47,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,71,47,.04) 1px,transparent 1px);background-size:24px 24px}
 .mmpin{position:absolute;top:50%;left:50%;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center}
@@ -314,6 +315,27 @@ textarea.fi{height:80px;resize:none;padding-top:14px;padding-bottom:14px;display
 ::-webkit-scrollbar{width:0;background:transparent}
 .hist-wrap{padding:22px 20px 0}
 .hist-title{font-size:20px;font-weight:700;color:var(--cravo);margin-bottom:16px}
+.fab-actions{padding:4px 16px 22px;display:flex;flex-direction:column;gap:10px}
+.fab-act{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:14px 16px;border:none;background:var(--white);border-radius:14px;border:1.5px solid var(--gergelim);cursor:pointer;touch-action:manipulation;font:inherit;transition:background .15s,border-color .15s;box-shadow:0 1px 0 rgba(46,8,29,.04)}
+.fab-act:active{background:var(--zimbro)}
+.fab-act-ico{width:48px;height:48px;border-radius:14px;background:var(--zimbro);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;line-height:1}
+.fab-act-text{display:flex;flex-direction:column;gap:2px;min-width:0;text-align:left}
+.fab-act-tit{font-size:15px;font-weight:700;color:var(--cravo)}
+.fab-act-sub{font-size:12px;color:var(--cardamomo);line-height:1.35}
+.sheet-pick .slbl{padding:0 20px 10px}
+.pick-cli-toolbar{padding:0 20px 8px}
+.pick-cli-q{margin:0}
+.pick-cli-wrap{padding:0 20px 16px;max-height:min(380px,48vh);overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+.pick-cli-wrap-short{max-height:min(200px,28vh)}
+.pick-cli-row{width:100%;text-align:left;padding:12px 14px;border-radius:12px;border:1.5px solid var(--gergelim);background:var(--white);margin-bottom:8px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:3px;transition:border-color .15s,background .15s}
+.pick-cli-row:last-child{margin-bottom:0}
+.pick-cli-row:active{background:var(--zimbro)}
+.pick-cli-row.on{border-color:var(--orange);background:rgba(255,71,47,.07)}
+.pick-cli-name{font-weight:700;font-size:14px;color:var(--cravo)}
+.pick-cli-meta{font-size:11px;color:var(--cardamomo)}
+.lem-fields{padding:0 20px 8px;display:flex;flex-direction:column;gap:12px}
+.lem-foot{padding-top:8px}
+
 .more-list{padding:4px 8px 20px;display:flex;flex-direction:column;gap:4px}
 .more-item{width:100%;text-align:left;padding:14px 16px;border:none;background:transparent;font:inherit;font-size:15px;font-weight:600;color:var(--cravo);border-radius:12px;cursor:pointer;touch-action:manipulation}
 .more-item:active{background:var(--zimbro)}

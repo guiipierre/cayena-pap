@@ -112,6 +112,7 @@ const DB = [
 let currCli = null;
 let prevScr = 'ana';
 let pinIdx = null;
+let lemPickId = null;
 let cadStep = 1;
 let currSeg = 'peq';
 let currChip = null;
@@ -268,6 +269,153 @@ function closeCad() {
 
 function closeOv(id) {
   document.getElementById(id).classList.remove('on');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function openFabMenu() {
+  const om = document.getElementById('ov-more');
+  if (om) om.classList.remove('on');
+  document.getElementById('ov-fab').classList.add('on');
+}
+
+function fabNovaCliente() {
+  closeOv('ov-fab');
+  openCad();
+}
+
+function fabNovoFormulario() {
+  closeOv('ov-fab');
+  const q = document.getElementById('pick-cli-q');
+  if (q) q.value = '';
+  renderPickCliList('');
+  document.getElementById('ov-pick-cli').classList.add('on');
+}
+
+function fabNovoLembrete() {
+  closeOv('ov-fab');
+  lemPickId = null;
+  const lq = document.getElementById('lem-q');
+  if (lq) lq.value = '';
+  const ld = document.getElementById('lem-date');
+  const lt = document.getElementById('lem-time');
+  const lo = document.getElementById('lem-obs');
+  if (ld) ld.value = '';
+  if (lt) lt.value = '';
+  if (lo) lo.value = '';
+  renderLemList('');
+  document.getElementById('ov-lem').classList.add('on');
+}
+
+function filterPickCli() {
+  renderPickCliList(document.getElementById('pick-cli-q').value);
+}
+
+function renderPickCliList(raw) {
+  const q = (raw || '').toLowerCase().trim();
+  const list = !q
+    ? [...DB]
+    : DB.filter(
+        (c) =>
+          c.nome.toLowerCase().includes(q) ||
+          (c.cnpj && c.cnpj.includes(q)) ||
+          c.bairro.toLowerCase().includes(q)
+      );
+  const el = document.getElementById('pick-cli-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML =
+      '<div class="cli-empty" style="padding:24px 0">Nenhum cliente encontrado.</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map(
+      (c) =>
+        '<button type="button" class="pick-cli-row" onclick="pickCliForVis(' +
+        c.id +
+        ')"><span class="pick-cli-name">' +
+        escapeHtml(c.nome) +
+        '</span><span class="pick-cli-meta">' +
+        escapeHtml(c.bairro) +
+        ' · ' +
+        escapeHtml(c.cnpj) +
+        '</span></button>'
+    )
+    .join('');
+}
+
+function pickCliForVis(id) {
+  const c = getCliById(id);
+  if (!c) return;
+  currCli = c;
+  closeOv('ov-pick-cli');
+  openVis();
+}
+
+function filterLemCli() {
+  renderLemList(document.getElementById('lem-q').value);
+}
+
+function renderLemList(raw) {
+  const q = (raw || '').toLowerCase().trim();
+  const list = !q
+    ? [...DB]
+    : DB.filter(
+        (c) =>
+          c.nome.toLowerCase().includes(q) ||
+          (c.cnpj && c.cnpj.includes(q)) ||
+          c.bairro.toLowerCase().includes(q)
+      );
+  const el = document.getElementById('lem-cli-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML =
+      '<div class="cli-empty" style="padding:24px 0">Nenhum cliente encontrado.</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map(
+      (c) =>
+        '<button type="button" class="pick-cli-row' +
+        (lemPickId === c.id ? ' on' : '') +
+        '" onclick="pickLemCli(' +
+        c.id +
+        ')"><span class="pick-cli-name">' +
+        escapeHtml(c.nome) +
+        '</span><span class="pick-cli-meta">' +
+        escapeHtml(c.bairro) +
+        ' · ' +
+        escapeHtml(c.cnpj) +
+        '</span></button>'
+    )
+    .join('');
+}
+
+function pickLemCli(id) {
+  lemPickId = id;
+  renderLemList(document.getElementById('lem-q').value);
+}
+
+function subLembrete() {
+  if (lemPickId === null) {
+    toast('⚠️ Selecione um cliente');
+    return;
+  }
+  const d = document.getElementById('lem-date').value;
+  const t = document.getElementById('lem-time').value;
+  if (!d || !t) {
+    toast('⚠️ Informe data e hora do lembrete');
+    return;
+  }
+  const c = getCliById(lemPickId);
+  if (!c) return;
+  const obs = (document.getElementById('lem-obs').value || '').trim();
+  toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
+  closeOv('ov-lem');
 }
 
 function resetCad() {

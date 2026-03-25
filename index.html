@@ -84,7 +84,7 @@
         </div>
         <div class="mact">
           <div class="mbtn" onclick="toast('Centralizando...')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
-          <div class="mbtn orange" onclick="openCad()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+          <div class="mbtn orange" onclick="openFabMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         </div>
         <div class="popup" id="popup">
           <div class="ppn" id="ppn"></div><div class="ppa" id="ppa"></div><div class="ppbw" id="ppbw"></div>
@@ -150,7 +150,7 @@
   </div>
 
   <nav class="nav-shell" aria-label="Navegação principal">
-    <button type="button" class="nav-fab" onclick="openCad()" aria-label="Novo cadastro">
+    <button type="button" class="nav-fab" onclick="openFabMenu()" aria-label="Ações rápidas">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
     <div class="nav-bar">
@@ -173,6 +173,59 @@
       </button>
     </div>
   </nav>
+</div>
+
+<div class="ov" id="ov-fab" onclick="if(event.target.id==='ov-fab')closeOv('ov-fab')">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit">O que deseja fazer?</div><div class="scls" onclick="closeOv('ov-fab')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="fab-actions">
+      <button type="button" class="fab-act" onclick="fabNovaCliente()">
+        <span class="fab-act-ico" aria-hidden="true">👤</span>
+        <span class="fab-act-text"><span class="fab-act-tit">Novo cliente</span><span class="fab-act-sub">Cadastrar estabelecimento no mapa</span></span>
+      </button>
+      <button type="button" class="fab-act" onclick="fabNovoFormulario()">
+        <span class="fab-act-ico" aria-hidden="true">📋</span>
+        <span class="fab-act-text"><span class="fab-act-tit">Novo formulário</span><span class="fab-act-sub">Registrar resultado da visita</span></span>
+      </button>
+      <button type="button" class="fab-act" onclick="fabNovoLembrete()">
+        <span class="fab-act-ico" aria-hidden="true">🔔</span>
+        <span class="fab-act-text"><span class="fab-act-tit">Novo lembrete</span><span class="fab-act-sub">Reagendar visita ou aviso</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov-pick-cli" onclick="if(event.target.id==='ov-pick-cli')closeOv('ov-pick-cli')">
+  <div class="sheet sheet-pick" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit">Registrar visita</div><div class="scls" onclick="closeOv('ov-pick-cli')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="slbl">Escolha o cliente para abrir o formulário de visita.</div>
+    <div class="pick-cli-toolbar">
+      <input type="search" class="fi pick-cli-q" id="pick-cli-q" placeholder="Buscar nome, CNPJ ou bairro..." autocomplete="off" oninput="filterPickCli()">
+    </div>
+    <div class="pick-cli-wrap" id="pick-cli-list"></div>
+  </div>
+</div>
+
+<div class="ov" id="ov-lem" onclick="if(event.target.id==='ov-lem')closeOv('ov-lem')">
+  <div class="sheet sheet-pick" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr"><div class="stit">Novo lembrete</div><div class="scls" onclick="closeOv('ov-lem')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="slbl">Selecione o cliente e quando deseja ser lembrado.</div>
+    <div class="pick-cli-toolbar">
+      <input type="search" class="fi pick-cli-q" id="lem-q" placeholder="Buscar cliente..." autocomplete="off" oninput="filterLemCli()">
+    </div>
+    <div class="pick-cli-wrap pick-cli-wrap-short" id="lem-cli-list"></div>
+    <div class="lem-fields">
+      <div class="fr2">
+        <div class="fg"><div class="flbl">Data <span class="req">*</span></div><input class="fi" type="date" id="lem-date"></div>
+        <div class="fg"><div class="flbl">Hora <span class="req">*</span></div><input class="fi" type="time" id="lem-time"></div>
+      </div>
+      <div class="fg"><div class="flbl">Observações</div><textarea class="fi" id="lem-obs" placeholder="Ex.: lembrar de levar amostras, follow-up pós-visita..."></textarea></div>
+    </div>
+    <div class="sfoo lem-foot"><button type="button" class="btnp" onclick="subLembrete()">Salvar lembrete</button></div>
+  </div>
 </div>
 
 <div class="ov" id="ov-more" onclick="if(event.target.id==='ov-more')closeOv('ov-more')">
