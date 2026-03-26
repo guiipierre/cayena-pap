@@ -936,6 +936,39 @@ function initCliListDelegation() {
   });
 }
 
+/** Clique nas listas de escolha (visita / lembrete): delegação evita bugs de onclick+UUID no mobile. */
+function initPickListsDelegation() {
+  const pickEl = document.getElementById('pick-cli-list');
+  if (pickEl && !pickEl._delegation) {
+    pickEl._delegation = true;
+    pickEl.addEventListener('click', function (ev) {
+      const row = ev.target.closest('.pick-cli-row');
+      if (!row || row.getAttribute('data-cid') == null || row.getAttribute('data-cid') === '') return;
+      ev.preventDefault();
+      pickCliForVis(row.getAttribute('data-cid'));
+    });
+  }
+  const lemEl = document.getElementById('lem-cli-list');
+  if (lemEl && !lemEl._delegation) {
+    lemEl._delegation = true;
+    lemEl.addEventListener('click', function (ev) {
+      const row = ev.target.closest('.pick-cli-row');
+      if (!row || row.getAttribute('data-cid') == null || row.getAttribute('data-cid') === '') return;
+      ev.preventDefault();
+      pickLemCli(row.getAttribute('data-cid'));
+    });
+  }
+}
+
+function cliMatchesSearchQuery(c, qRaw) {
+  const q = (qRaw || '').toLowerCase().trim();
+  if (!q) return true;
+  const nome = String(c.nome || '').toLowerCase();
+  const bairro = String(c.bairro || '').toLowerCase();
+  const cnpj = String(c.cnpj || '');
+  return nome.includes(q) || bairro.includes(q) || cnpj.includes(q);
+}
+
 let currCli = null;
 let prevScr = 'ana';
 let pinIdx = null;
@@ -1288,15 +1321,19 @@ function fabNovaCliente() {
   openCad();
 }
 
-function fabNovoFormulario() {
+async function fabNovoFormulario() {
   closeOv('ov-fab');
   const q = document.getElementById('pick-cli-q');
   if (q) q.value = '';
+  if (sessionStorage.getItem('cayena_offline') !== '1') {
+    const sb = await ensureSupabase();
+    if (sb) await loadClientsFromSupabase({ silent: true });
+  }
   renderPickCliList('');
   document.getElementById('ov-pick-cli').classList.add('on');
 }
 
-function fabNovoLembrete() {
+async function fabNovoLembrete() {
   closeOv('ov-fab');
   lemPickId = null;
   const lq = document.getElementById('lem-q');
@@ -1307,6 +1344,10 @@ function fabNovoLembrete() {
   if (ld) ld.value = '';
   if (lt) lt.value = '';
   if (lo) lo.value = '';
+  if (sessionStorage.getItem('cayena_offline') !== '1') {
+    const sb = await ensureSupabase();
+    if (sb) await loadClientsFromSupabase({ silent: true });
+  }
   renderLemList('');
   document.getElementById('ov-lem').classList.add('on');
 }
@@ -1316,15 +1357,9 @@ function filterPickCli() {
 }
 
 function renderPickCliList(raw) {
-  const q = (raw || '').toLowerCase().trim();
-  const list = !q
-    ? [...DB]
-    : DB.filter(
-        (c) =>
-          c.nome.toLowerCase().includes(q) ||
-          (c.cnpj && c.cnpj.includes(q)) ||
-          c.bairro.toLowerCase().includes(q)
-      );
+  const list = DB.filter(function (c) {
+    return cliMatchesSearchQuery(c, raw);
+  });
   const el = document.getElementById('pick-cli-list');
   if (!el) return;
   if (!list.length) {
@@ -1333,23 +1368,25 @@ function renderPickCliList(raw) {
     return;
   }
   el.innerHTML = list
-    .map(
-      (c) =>
-        '<button type="button" class="pick-cli-row" onclick="pickCliForVis(' +
-        JSON.stringify(c.id) +
-        ')"><span class="pick-cli-name">' +
+    .map(function (c) {
+      const cid = String(c.id).replace(/"/g, '&quot;');
+      return (
+        '<button type="button" class="pick-cli-row" data-cid="' +
+        cid +
+        '"><span class="pick-cli-name">' +
         escapeHtml(c.nome) +
         '</span><span class="pick-cli-meta">' +
         escapeHtml(c.bairro) +
         ' · ' +
         escapeHtml(c.cnpj) +
         '</span></button>'
-    )
+      );
+    })
     .join('');
 }
 
 function pickCliForVis(id) {
-  const c = getCliById(id);
+  const c = getCliById(id != null ? String(id) : id);
   if (!c) return;
   currCli = c;
   closeOv('ov-pick-cli');
@@ -1361,15 +1398,9 @@ function filterLemCli() {
 }
 
 function renderLemList(raw) {
-  const q = (raw || '').toLowerCase().trim();
-  const list = !q
-    ? [...DB]
-    : DB.filter(
-        (c) =>
-          c.nome.toLowerCase().includes(q) ||
-          (c.cnpj && c.cnpj.includes(q)) ||
-          c.bairro.toLowerCase().includes(q)
-      );
+  const list = DB.filter(function (c) {
+    return cliMatchesSearchQuery(c, raw);
+  });
   const el = document.getElementById('lem-cli-list');
   if (!el) return;
   if (!list.length) {
@@ -1378,25 +1409,27 @@ function renderLemList(raw) {
     return;
   }
   el.innerHTML = list
-    .map(
-      (c) =>
+    .map(function (c) {
+      const cid = String(c.id).replace(/"/g, '&quot;');
+      return (
         '<button type="button" class="pick-cli-row' +
         (String(lemPickId) === String(c.id) ? ' on' : '') +
-        '" onclick="pickLemCli(' +
-        JSON.stringify(c.id) +
-        ')"><span class="pick-cli-name">' +
+        '" data-cid="' +
+        cid +
+        '"><span class="pick-cli-name">' +
         escapeHtml(c.nome) +
         '</span><span class="pick-cli-meta">' +
         escapeHtml(c.bairro) +
         ' · ' +
         escapeHtml(c.cnpj) +
         '</span></button>'
-    )
+      );
+    })
     .join('');
 }
 
 function pickLemCli(id) {
-  lemPickId = id;
+  lemPickId = id != null ? String(id) : null;
   renderLemList(document.getElementById('lem-q').value);
 }
 
@@ -1591,9 +1624,33 @@ async function subCad() {
       toast('Erro ao salvar: ' + error.message);
       return;
     }
-    newId = estId;
-    await loadClientsFromSupabase();
-    await mergeEstablishmentIntoDb(sb, estId);
+    newId = estId != null ? String(estId) : estId;
+    await loadClientsFromSupabase({ silent: true });
+    await mergeEstablishmentIntoDb(sb, newId);
+    if (!getCliById(newId)) {
+      DB.unshift({
+        id: newId,
+        nome,
+        tipo,
+        status: 'novo',
+        cnpj,
+        tel,
+        email: '',
+        rua,
+        num,
+        comp,
+        bairro,
+        cidade,
+        estado: estado || 'SP',
+        cep,
+        lat,
+        lng,
+        obs,
+        visitas: [],
+        created_at: new Date().toISOString(),
+      });
+      refreshOpenClientPickers();
+    }
   } else {
     newId = Math.max(...DB.map((c) => (typeof c.id === 'number' ? c.id : 0)), -1) + 1;
     DB.push({
@@ -2000,5 +2057,6 @@ document.getElementById('v-cel')?.addEventListener('input', (e) => {
 
 document.addEventListener('DOMContentLoaded', function () {
   initCliListDelegation();
+  initPickListsDelegation();
   bootstrapAuth();
 });
