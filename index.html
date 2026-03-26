@@ -79,8 +79,9 @@
         <span class="hdr-user" id="hdr-user"></span>
         <span class="hdr-role" id="hdr-role" style="display:none">Admin</span>
       </div>
-      <div class="hdr-today">Hoje: <b id="cnt">7</b></div>
-      <div class="hdr-av" id="hdr-av" aria-hidden="true"><span id="hdr-av-text">?</span></div>
+      <button type="button" class="hdr-more" id="hdr-btn-more" onclick="toggleMore()" aria-label="Mais opções" title="Mais opções">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="16" x2="20" y2="16"/></svg>
+      </button>
     </div>
   </header>
 
@@ -230,9 +231,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span>Clientes</span>
       </button>
-      <button type="button" class="ni" id="ni-more" onclick="toggleMore()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="4" y1="8" x2="20" y2="8"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="16" x2="20" y2="16"/></svg>
-        <span>Mais</span>
+      <button type="button" class="ni" id="ni-map" onclick="goScr('map')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span>Mapa</span>
       </button>
     </div>
   </nav>
@@ -297,7 +298,6 @@
     <div class="shdr"><div class="stit">Mais opções</div><div class="scls" onclick="closeOv('ov-more')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
     <div class="more-list">
       <button type="button" class="more-item" id="more-admin" style="display:none" onclick="closeOv('ov-more');openAdminTab()">Administração</button>
-      <button type="button" class="more-item" onclick="closeOv('ov-more');goScr('map')">Mapa</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Notificações</button>
       <div class="more-sep" aria-hidden="true"></div>
       <div class="more-group-label">Conta</div>

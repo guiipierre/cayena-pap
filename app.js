@@ -281,21 +281,10 @@ function updateDashboardGreet(user) {
   span.textContent = 'Consultor';
 }
 
-function initialsForHeader(user) {
-  if (!user || !user.email) {
-    if (sessionStorage.getItem('cayena_offline') === '1') return 'C';
-    return '?';
-  }
-  const fromProfile = currentProfile && greetFirstNameFromProfile(currentProfile.full_name);
-  if (fromProfile) return fromProfile.charAt(0).toUpperCase();
-  return user.email.charAt(0).toUpperCase();
-}
-
 function updateHdrUser(user) {
   const session = document.getElementById('hdr-session');
   const el = document.getElementById('hdr-user');
   const roleEl = document.getElementById('hdr-role');
-  const avText = document.getElementById('hdr-av-text');
   const moreLogout = document.getElementById('more-logout');
   const show = !!user;
   if (session) session.style.display = show ? 'flex' : 'none';
@@ -305,9 +294,6 @@ function updateHdrUser(user) {
   if (roleEl) {
     const isAdm = show && currentProfile && currentProfile.role === 'admin';
     roleEl.style.display = isAdm ? 'inline-flex' : 'none';
-  }
-  if (avText) {
-    avText.textContent = initialsForHeader(user);
   }
   if (moreLogout) {
     const canLogout = !!user && isSupabaseConfigured() && sessionStorage.getItem('cayena_offline') !== '1';
@@ -1276,10 +1262,8 @@ async function subCad() {
   document.getElementById('cadslbl').style.display = 'none';
   document.getElementById('cadtit').textContent = 'Sucesso! 🎉';
   document.getElementById('cadsuc').classList.add('on');
-  const e = document.getElementById('cnt');
-  e.textContent = parseInt(e.textContent, 10) + 1;
   const k = document.getElementById('khoje');
-  k.textContent = parseInt(k.textContent, 10) + 1;
+  if (k) k.textContent = parseInt(k.textContent, 10) + 1;
   toast('✓ Cliente cadastrado!', true);
   setTimeout(closeCad, 3000);
 }
