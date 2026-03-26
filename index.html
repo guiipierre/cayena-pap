@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 </head>
 <body>
 <div id="app">
@@ -59,23 +60,9 @@
 
     <div class="scr" id="scr-map">
       <div class="mwrap">
-        <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Buscar bairro ou endereço..."></div>
+        <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" id="map-search" placeholder="Buscar cliente (nome, bairro, CNPJ)…" autocomplete="off" enterkeyhint="search" onkeydown="if(event.key==='Enter'){event.preventDefault();mapSearchClients();}"></div>
         <div class="fmap">
-          <div class="mgrid"></div>
-          <div class="rd" style="top:28%;left:0;right:0;height:3px;transform:rotate(2deg)"></div>
-          <div class="rd" style="top:52%;left:0;right:0;height:2px;transform:rotate(-1deg)"></div>
-          <div class="rd" style="top:72%;left:0;right:0;height:3px;transform:rotate(1deg)"></div>
-          <div class="rd" style="left:18%;top:0;bottom:0;width:2px"></div>
-          <div class="rd" style="left:48%;top:0;bottom:0;width:3px"></div>
-          <div class="rd" style="left:76%;top:0;bottom:0;width:2px"></div>
-          <div class="rd" style="top:42%;left:18%;right:28%;height:2px;transform:rotate(3deg)"></div>
-          <div class="upin" style="left:49%;top:50%"><div class="uring"></div><div class="udot"></div></div>
-          <div class="pin pn" style="left:34%;top:36%" onclick="pinClick(0,'Pizzaria do Zé','R. Fradique Coutinho, 88 — Vila Madalena','novo')"><div class="pd"></div><div class="pt"></div></div>
-          <div class="pin pn" style="left:63%;top:26%" onclick="pinClick(3,'Restaurante Vegano SP','Al. Itu, 220 — Jardins','novo')"><div class="pd"></div><div class="pt"></div></div>
-          <div class="pin pn" style="left:25%;top:65%" onclick="pinClick(-1,'Lanchonete Rápida','R. Teodoro Sampaio, 500','novo')"><div class="pd"></div><div class="pt"></div></div>
-          <div class="pin pr" style="left:58%;top:62%" onclick="pinClick(1,'Açougue Central','R. Oscar Freire, 55 — Pinheiros','reat')"><div class="pd"></div><div class="pt"></div></div>
-          <div class="pin pr" style="left:78%;top:42%" onclick="pinClick(2,'Bar do Carlinhos','R. Pamplona, 300 — Bela Vista','reat')"><div class="pd"></div><div class="pt"></div></div>
-          <div class="pin pr" style="left:42%;top:78%" onclick="pinClick(-1,'Mercearia Lima','R. Haddock Lobo, 44','reat')"><div class="pd"></div><div class="pt"></div></div>
+          <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
           <div class="li"><div class="ld" style="background:var(--orange)"></div>Novo cadastro</div>
@@ -83,7 +70,7 @@
           <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
         </div>
         <div class="mact">
-          <div class="mbtn" onclick="toast('Centralizando...')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+          <div class="mbtn" onclick="mapCenterOnUser()" aria-label="Minha localização"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
           <div class="mbtn orange" onclick="openFabMenu()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
         </div>
         <div class="popup" id="popup">
@@ -349,6 +336,7 @@
 </div>
 
 <div class="toast" id="toastel"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="app.js" defer></script>
 </body>
 </html>

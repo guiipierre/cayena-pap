@@ -131,6 +131,11 @@ function goScr(s) {
   const ni = document.getElementById('ni-' + s);
   if (ni) ni.classList.add('on');
   closePopup();
+  if (s === 'map') {
+    setTimeout(function () {
+      initLeafletMap();
+    }, 150);
+  }
 }
 
 function goBack() {
@@ -236,12 +241,12 @@ function swTab(t) {
   });
 }
 
-function pinClick(idx, nome, addr, tipo) {
-  pinIdx = idx;
-  document.getElementById('ppn').textContent = nome;
-  document.getElementById('ppa').textContent = addr;
+function showMapPopupFromClient(c) {
+  pinIdx = c.id;
+  document.getElementById('ppn').textContent = c.nome;
+  document.getElementById('ppa').textContent = c.rua + ', ' + c.num + ' — ' + c.bairro;
   document.getElementById('ppbw').innerHTML =
-    tipo === 'reat'
+    c.status === 'reat'
       ? '<span class="badge b-reat">REATIVADO</span>'
       : '<span class="badge b-novo">NOVO</span>';
   document.getElementById('popup').classList.add('on');
@@ -255,6 +260,171 @@ function pinAct() {
   closePopup();
   if (pinIdx >= 0) openCli(pinIdx);
   else toast('Cliente sem ficha (mock)');
+}
+
+let mapInstance = null;
+let mapMarkersLayer = null;
+let mapUserMarker = null;
+let mapDidInitialFit = false;
+
+function makeMapIcon(isNovo) {
+  const cls = isNovo ? 'novo' : 'reat';
+  return L.divIcon({
+    className: 'map-pin-ico',
+    html:
+      '<div class="map-pin-dot ' +
+      cls +
+      '"></div><div class="map-pin-stem ' +
+      cls +
+      '"></div>',
+    iconSize: [28, 36],
+    iconAnchor: [14, 36],
+    popupAnchor: [0, -32],
+  });
+}
+
+function initLeafletMap() {
+  if (typeof L === 'undefined') return;
+  const el = document.getElementById('leaflet-map');
+  if (!el) return;
+
+  if (!mapInstance) {
+    mapInstance = L.map(el, { zoomControl: true }).setView([-23.55, -46.63], 12);
+    /* Tiles via CARTO (dados OSM): tile.openstreetmap.org bloqueia requisições sem Referer (WebView, alguns browsers). */
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+      subdomains: 'abcd',
+      maxZoom: 20,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+    }).addTo(mapInstance);
+    mapMarkersLayer = L.layerGroup().addTo(mapInstance);
+    refreshMapMarkers({ doInitialFit: true });
+  } else {
+    setTimeout(function () {
+      mapInstance.invalidateSize();
+    }, 200);
+  }
+}
+
+function refreshMapMarkers(opts) {
+  if (typeof L === 'undefined' || !mapInstance || !mapMarkersLayer) return;
+  opts = opts || {};
+  mapMarkersLayer.clearLayers();
+
+  const pts = [];
+  DB.forEach(function (c) {
+    const lat = parseFloat(c.lat);
+    const lng = parseFloat(c.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    const isNovo = c.status !== 'reat';
+    const m = L.marker([lat, lng], { icon: makeMapIcon(isNovo) });
+    m.on('click', function () {
+      showMapPopupFromClient(c);
+    });
+    m.addTo(mapMarkersLayer);
+    pts.push([lat, lng]);
+  });
+
+  if (opts.focusClientId != null) {
+    const c = getCliById(opts.focusClientId);
+    if (c) {
+      const la = parseFloat(c.lat);
+      const lo = parseFloat(c.lng);
+      if (!Number.isNaN(la) && !Number.isNaN(lo)) {
+        mapInstance.flyTo([la, lo], 16, { duration: 0.6 });
+      }
+    }
+    return;
+  }
+
+  if (opts.doInitialFit && pts.length) {
+    const b = L.latLngBounds(pts);
+    mapInstance.fitBounds(b.pad(0.14));
+    mapDidInitialFit = true;
+  } else if (opts.doInitialFit && !pts.length) {
+    mapInstance.setView([-23.55, -46.63], 12);
+    mapDidInitialFit = true;
+  }
+}
+
+function mapCenterOnUser() {
+  if (typeof L === 'undefined' || !mapInstance) {
+    initLeafletMap();
+    setTimeout(mapCenterOnUser, 300);
+    return;
+  }
+  if (!navigator.geolocation) {
+    toast('Geolocalização não disponível');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function (p) {
+      const lat = p.coords.latitude;
+      const lng = p.coords.longitude;
+      mapInstance.setView([lat, lng], 15);
+      if (mapUserMarker) {
+        mapUserMarker.setLatLng([lat, lng]);
+      } else {
+        mapUserMarker = L.circleMarker([lat, lng], {
+          radius: 8,
+          color: '#fff',
+          weight: 3,
+          fillColor: '#FF472F',
+          fillOpacity: 1,
+        }).addTo(mapInstance);
+      }
+      toast('Localização atualizada', true);
+    },
+    function () {
+      toast('Não foi possível obter sua localização');
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function mapSearchClients() {
+  if (typeof L === 'undefined') {
+    toast('Mapa indisponível');
+    return;
+  }
+  if (!mapInstance) {
+    initLeafletMap();
+    setTimeout(mapSearchClients, 280);
+    return;
+  }
+  const raw = (document.getElementById('map-search') && document.getElementById('map-search').value) || '';
+  const q = raw.toLowerCase().trim();
+  if (!q) {
+    toast('Digite nome, bairro ou CNPJ');
+    return;
+  }
+  const matches = DB.filter(function (c) {
+    return (
+      c.nome.toLowerCase().includes(q) ||
+      (c.cnpj && c.cnpj.includes(q)) ||
+      c.bairro.toLowerCase().includes(q)
+    );
+  });
+  const withCoords = matches.filter(function (c) {
+    const la = parseFloat(c.lat);
+    const lo = parseFloat(c.lng);
+    return !Number.isNaN(la) && !Number.isNaN(lo);
+  });
+  if (!withCoords.length) {
+    toast('Nenhum cliente encontrado com esse termo');
+    return;
+  }
+  if (withCoords.length === 1) {
+    const c = withCoords[0];
+    mapInstance.flyTo([parseFloat(c.lat), parseFloat(c.lng)], 16, { duration: 0.5 });
+    showMapPopupFromClient(c);
+    return;
+  }
+  const bounds = L.latLngBounds(withCoords.map(function (c) {
+    return [parseFloat(c.lat), parseFloat(c.lng)];
+  }));
+  mapInstance.fitBounds(bounds.pad(0.18));
+  toast(withCoords.length + ' clientes na área');
 }
 
 function openCad() {
@@ -557,6 +727,8 @@ function subCad() {
     obs,
     visitas: [],
   });
+
+  refreshMapMarkers({ focusClientId: newId });
 
   document.getElementById('succnpj').textContent = cnpj;
   document.getElementById('cadfb').style.display = 'none';
