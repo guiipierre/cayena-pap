@@ -679,6 +679,14 @@ function updateDashboardGreet(user) {
   span.textContent = 'Consultor';
 }
 
+function updateMoreMenuLoginRecover() {
+  const el = document.getElementById('more-login-recover');
+  if (!el) return;
+  const show =
+    isSupabaseConfigured() && sessionStorage.getItem('cayena_offline') === '1';
+  el.style.display = show ? '' : 'none';
+}
+
 function updateHdrUser(user) {
   const session = document.getElementById('hdr-session');
   const el = document.getElementById('hdr-user');
@@ -697,6 +705,7 @@ function updateHdrUser(user) {
     const canLogout = !!user && isSupabaseConfigured() && sessionStorage.getItem('cayena_offline') !== '1';
     moreLogout.style.display = canLogout ? '' : 'none';
   }
+  updateMoreMenuLoginRecover();
   updateDashboardGreet(user);
 }
 
@@ -809,9 +818,33 @@ function authUseOffline() {
   updateHdrUser(null);
   currentProfile = { role: 'seller' };
   updateAdminEntry();
+  updateMoreMenuLoginRecover();
   if (typeof refreshMapMarkers === 'function') {
     refreshMapMarkers({ doInitialFit: true });
   }
+}
+
+/**
+ * Volta à tela de login (sai do modo offline e encerra sessão Supabase).
+ * Use pelo menu ⋮ → "Entrar com e-mail" ou abra o app com ?login=1 na URL.
+ */
+async function recoverLoginScreen() {
+  sessionStorage.removeItem('cayena_offline');
+  const sb = await ensureSupabase();
+  if (sb) {
+    await sb.auth.signOut();
+  }
+  DB = [];
+  currentProfile = { role: 'seller' };
+  renderDashboard();
+  updateHdrUser(null);
+  updateAdminEntry();
+  updateMoreMenuLoginRecover();
+  if (typeof refreshMapMarkers === 'function') {
+    refreshMapMarkers({ doInitialFit: true });
+  }
+  showAuthOverlay();
+  toast('Faça login com seu e-mail e senha');
 }
 
 /** Perfil do usuário logado (role = admin | seller) */
@@ -924,6 +957,17 @@ async function adminCreateSeller() {
 
 async function bootstrapAuth() {
   updateAuthSkipVisibility();
+  var urlWantsLogin = false;
+  try {
+    var u = new URL(window.location.href);
+    if (u.searchParams.get('login') === '1' || u.searchParams.get('entrar') === '1') {
+      urlWantsLogin = true;
+      sessionStorage.removeItem('cayena_offline');
+      u.searchParams.delete('login');
+      u.searchParams.delete('entrar');
+      window.history.replaceState({}, '', u.pathname + u.search + u.hash);
+    }
+  } catch (e) {}
   if (!isSupabaseConfigured()) {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
     renderDashboard();
@@ -947,7 +991,20 @@ async function bootstrapAuth() {
     renderDashboard();
     hideAuthOverlay();
     updateHdrUser(null);
+    updateMoreMenuLoginRecover();
     return;
+  }
+  if (urlWantsLogin) {
+    await supabaseClient.auth.signOut();
+    DB = [];
+    currentProfile = { role: 'seller' };
+    renderDashboard();
+    updateHdrUser(null);
+    updateAdminEntry();
+    updateMoreMenuLoginRecover();
+    if (typeof refreshMapMarkers === 'function') {
+      refreshMapMarkers({ doInitialFit: true });
+    }
   }
   const {
     data: { session },
@@ -963,6 +1020,7 @@ async function bootstrapAuth() {
     updateHdrUser(null);
     showAuthOverlay();
   }
+  updateMoreMenuLoginRecover();
   supabaseClient.auth.onAuthStateChange(function (event, sess) {
     if (event === 'TOKEN_REFRESHED') {
       return;

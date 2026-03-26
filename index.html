@@ -289,6 +289,7 @@
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Notificações</button>
       <div class="more-sep" aria-hidden="true"></div>
       <div class="more-group-label">Conta</div>
+      <button type="button" class="more-item" id="more-login-recover" style="display:none" onclick="closeOv('ov-more');recoverLoginScreen()">Entrar com e-mail (nuvem)</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Configurações</button>
       <button type="button" class="more-item more-item--danger" id="more-logout" style="display:none" onclick="closeOv('ov-more');openLogoutConfirm()">Sair da conta</button>
     </div>
@@ -419,6 +420,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=12" defer></script>
+<script src="pap-app.js?v=13" defer></script>
 </body>
 </html>
