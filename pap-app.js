@@ -1621,8 +1621,12 @@ let mapInstance = null;
 let mapMarkersLayer = null;
 let mapUserMarker = null;
 let mapDidInitialFit = false;
-/** Linha da rota planejada (vendedor) no mapa principal */
-let mapSellerRoutePolyline = null;
+const MAP_ROUTE_STORAGE_KEY = 'cayena_map_selected_route_id';
+/** Ordem das paradas na rota exibida (id estabelecimento → número 1..n) */
+let mapSellerRouteStopOrder = {};
+let mapSelectedRouteId = null;
+/** Camadas Leaflet da rota (glow + traço) no mapa do vendedor */
+let mapSellerRouteLayerGroup = null;
 
 /** Planejador admin: mapa secundário e paradas */
 let routePlanMapInstance = null;
@@ -1637,7 +1641,6 @@ function initRoutePlanMap() {
   if (!el) return;
   if (!routePlanMapInstance) {
     routePlanMapInstance = L.map(el, { zoomControl: false }).setView([-23.55, -46.63], 12);
-    L.control.zoom({ position: 'topright' }).addTo(routePlanMapInstance);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       subdomains: 'abcd',
       maxZoom: 20,
@@ -1891,46 +1894,83 @@ async function saveSellerRoutePlan() {
   }
   toast('Rota salva — o vendedor vê no mapa', true);
   if (msgEl) {
-    msgEl.textContent = 'A linha tracejada laranja aparece no mapa do vendedor (rota mais recente).';
+    msgEl.textContent =
+      'No mapa, o vendedor escolhe qual rota ver no seletor e acompanha a ordem numerada nas paradas.';
   }
 }
 
-async function loadSellerPlannedRoutePolyline() {
-  const legEl = document.getElementById('mleg-route-line');
-  if (!mapInstance || !mapMarkersLayer) return;
-  if (currentProfile && currentProfile.role === 'admin') {
-    if (legEl) legEl.style.display = 'none';
-    return;
+function clearSellerRoutePolylines() {
+  if (!mapInstance) return;
+  if (mapSellerRouteLayerGroup) {
+    mapInstance.removeLayer(mapSellerRouteLayerGroup);
+    mapSellerRouteLayerGroup = null;
   }
+}
+
+/** Traço em duas camadas: halo suave + linha tracejada definida */
+function drawSellerRoutePolylines(latlngs) {
+  if (!mapInstance || latlngs.length < 2) return;
+  clearSellerRoutePolylines();
+  mapSellerRouteLayerGroup = L.layerGroup().addTo(mapInstance);
+  L.polyline(latlngs, {
+    color: '#FF472F',
+    weight: 12,
+    opacity: 0.22,
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(mapSellerRouteLayerGroup);
+  L.polyline(latlngs, {
+    color: '#FF472F',
+    weight: 3,
+    opacity: 0.95,
+    dashArray: '14 10',
+    lineCap: 'round',
+    lineJoin: 'round',
+  }).addTo(mapSellerRouteLayerGroup);
+}
+
+async function fetchSellerRouteContextForMap() {
+  const empty = { routes: [], selectedId: null, latlngs: [], stopOrder: {} };
+  if (currentProfile && currentProfile.role === 'admin') return empty;
   const sb = await ensureSupabase();
-  if (!sb) return;
+  if (!sb) return empty;
   const {
     data: { user },
   } = await sb.auth.getUser();
-  if (!user) {
-    if (legEl) legEl.style.display = 'none';
-    return;
-  }
-  const { data: route } = await sb
+  if (!user) return empty;
+
+  const { data: routes } = await sb
     .from('seller_routes')
-    .select('id')
+    .select('id, name, updated_at')
     .eq('seller_user_id', user.id)
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (!route || !route.id) {
-    if (legEl) legEl.style.display = 'none';
-    return;
+    .order('updated_at', { ascending: false });
+
+  if (!routes || !routes.length) return empty;
+
+  let selectedId = mapSelectedRouteId;
+  try {
+    const saved = localStorage.getItem(MAP_ROUTE_STORAGE_KEY);
+    if (!selectedId && saved && routes.some(function (r) { return r.id === saved; })) {
+      selectedId = saved;
+    }
+  } catch (e) {
+    /* ignore */
   }
+  if (!selectedId || !routes.some(function (r) { return r.id === selectedId; })) {
+    selectedId = routes[0].id;
+  }
+  mapSelectedRouteId = selectedId;
+
   const { data: stops } = await sb
     .from('seller_route_stops')
     .select('establishment_id, stop_order')
-    .eq('route_id', route.id)
+    .eq('route_id', selectedId)
     .order('stop_order');
+
   if (!stops || stops.length < 2) {
-    if (legEl) legEl.style.display = 'none';
-    return;
+    return { routes, selectedId, latlngs: [], stopOrder: {} };
   }
+
   const ids = stops.map(function (s) {
     return s.establishment_id;
   });
@@ -1939,24 +1979,63 @@ async function loadSellerPlannedRoutePolyline() {
   (ests || []).forEach(function (e) {
     byId[String(e.id)] = e;
   });
+
+  const stopOrder = {};
   const latlngs = [];
   stops.forEach(function (st) {
+    stopOrder[String(st.establishment_id)] = st.stop_order;
     const e = byId[String(st.establishment_id)];
     if (e && e.lat != null && e.lng != null) {
       latlngs.push([parseFloat(e.lat), parseFloat(e.lng)]);
     }
   });
-  if (latlngs.length < 2) {
-    if (legEl) legEl.style.display = 'none';
+
+  return { routes, selectedId, latlngs, stopOrder };
+}
+
+function populateMapRouteSelect(routes, selectedId) {
+  const row = document.getElementById('map-route-row');
+  const sel = document.getElementById('map-route-select');
+  if (!row || !sel) return;
+  if (currentProfile && currentProfile.role === 'admin') {
+    row.style.display = 'none';
+    row.setAttribute('aria-hidden', 'true');
     return;
   }
-  mapSellerRoutePolyline = L.polyline(latlngs, {
-    color: '#FF472F',
-    weight: 4,
-    opacity: 0.88,
-    dashArray: '10, 10',
-  }).addTo(mapInstance);
-  if (legEl) legEl.style.display = '';
+  if (!routes || !routes.length) {
+    row.style.display = 'none';
+    row.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  row.style.display = 'flex';
+  row.setAttribute('aria-hidden', 'false');
+  sel.innerHTML = '';
+  routes.forEach(function (r) {
+    const opt = document.createElement('option');
+    opt.value = r.id;
+    opt.textContent = (r.name && String(r.name).trim()) || 'Rota';
+    sel.appendChild(opt);
+  });
+  if (selectedId && Array.prototype.some.call(sel.options, function (o) { return o.value === selectedId; })) {
+    sel.value = selectedId;
+  } else if (sel.options.length) {
+    sel.value = sel.options[0].value;
+  }
+  mapSelectedRouteId = sel.value || null;
+}
+
+function onMapRouteSelectChange() {
+  const sel = document.getElementById('map-route-select');
+  if (!sel) return;
+  mapSelectedRouteId = sel.value || null;
+  try {
+    if (mapSelectedRouteId) {
+      localStorage.setItem(MAP_ROUTE_STORAGE_KEY, mapSelectedRouteId);
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  refreshMapMarkers({ fitSelectedRoute: true });
 }
 
 function makeMapIcon(isNovo) {
@@ -1982,7 +2061,6 @@ function initLeafletMap() {
 
   if (!mapInstance) {
     mapInstance = L.map(el, { zoomControl: false }).setView([-23.55, -46.63], 12);
-    L.control.zoom({ position: 'topright' }).addTo(mapInstance);
     /* Tiles via CARTO (dados OSM): tile.openstreetmap.org bloqueia requisições sem Referer (WebView, alguns browsers). */
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       subdomains: 'abcd',
@@ -1999,14 +2077,20 @@ function initLeafletMap() {
   }
 }
 
-function refreshMapMarkers(opts) {
+async function refreshMapMarkers(opts) {
   if (typeof L === 'undefined' || !mapInstance || !mapMarkersLayer) return;
   opts = opts || {};
-  if (mapSellerRoutePolyline) {
-    mapInstance.removeLayer(mapSellerRoutePolyline);
-    mapSellerRoutePolyline = null;
-  }
+  clearSellerRoutePolylines();
   mapMarkersLayer.clearLayers();
+
+  const routeCtx = await fetchSellerRouteContextForMap();
+  mapSellerRouteStopOrder = routeCtx.stopOrder || {};
+  populateMapRouteSelect(routeCtx.routes, routeCtx.selectedId);
+  drawSellerRoutePolylines(routeCtx.latlngs);
+  const legEl = document.getElementById('mleg-route-line');
+  if (legEl) {
+    legEl.style.display = routeCtx.latlngs.length >= 2 ? '' : 'none';
+  }
 
   const pts = [];
   DB.forEach(function (c) {
@@ -2014,7 +2098,9 @@ function refreshMapMarkers(opts) {
     const lng = parseFloat(c.lng);
     if (Number.isNaN(lat) || Number.isNaN(lng)) return;
     const isNovo = c.status !== 'reat';
-    const m = L.marker([lat, lng], { icon: makeMapIcon(isNovo) });
+    const ord = mapSellerRouteStopOrder[String(c.id)] || 0;
+    const icon = ord > 0 ? makeRoutePlanNumberedIcon(ord) : makeMapIcon(isNovo);
+    const m = L.marker([lat, lng], { icon: icon });
     m.on('click', function () {
       showMapPopupFromClient(c);
     });
@@ -2031,7 +2117,11 @@ function refreshMapMarkers(opts) {
         mapInstance.flyTo([la, lo], 16, { duration: 0.6 });
       }
     }
-    loadSellerPlannedRoutePolyline();
+    return;
+  }
+
+  if (opts.fitSelectedRoute && routeCtx.latlngs.length >= 2) {
+    mapInstance.fitBounds(L.latLngBounds(routeCtx.latlngs).pad(0.14));
     return;
   }
 
@@ -2043,7 +2133,6 @@ function refreshMapMarkers(opts) {
     mapInstance.setView([-23.55, -46.63], 12);
     mapDidInitialFit = true;
   }
-  loadSellerPlannedRoutePolyline();
 }
 
 function mapCenterOnUser() {

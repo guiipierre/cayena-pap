@@ -160,12 +160,18 @@
 
     <div class="scr" id="scr-map">
       <div class="mwrap">
-        <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" id="map-search" placeholder="Buscar cliente (nome, bairro, CNPJ)…" autocomplete="off" enterkeyhint="search" onkeydown="if(event.key==='Enter'){event.preventDefault();mapSearchClients();}"></div>
+        <div class="map-top-stack">
+          <div class="msbar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="search" id="map-search" placeholder="Buscar cliente (nome, bairro, CNPJ)…" autocomplete="off" enterkeyhint="search" onkeydown="if(event.key==='Enter'){event.preventDefault();mapSearchClients();}"></div>
+          <div class="map-route-row" id="map-route-row" style="display:none" aria-hidden="true">
+            <label class="map-route-lbl" for="map-route-select">Rota</label>
+            <select id="map-route-select" class="map-route-select" aria-label="Escolher rota planejada" onchange="onMapRouteSelectChange()"></select>
+          </div>
+        </div>
         <div class="fmap">
           <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
-          <div class="li" id="mleg-route-line" style="display:none"><div class="ld" style="background:var(--orange)"></div>Rota planejada</div>
+          <div class="li" id="mleg-route-line" style="display:none"><div class="ld ld-route-line"></div>Rota planejada</div>
           <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
         </div>
         <div class="mact">
@@ -455,6 +461,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=15" defer></script>
+<script src="pap-app.js?v=16" defer></script>
 </body>
 </html>
