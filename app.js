@@ -242,6 +242,12 @@ function showAuthOverlay() {
     o.classList.add('on');
     o.setAttribute('aria-hidden', 'false');
   }
+  const pass = document.getElementById('auth-pass');
+  if (pass) pass.value = '';
+  authResetPassToggle();
+  const msg = document.getElementById('auth-msg');
+  if (msg) msg.textContent = '';
+  setAuthFieldError(false);
   updateAuthSkipVisibility();
 }
 
@@ -253,43 +259,94 @@ function hideAuthOverlay() {
   }
 }
 
+function greetFirstNameFromProfile(fullName) {
+  if (!fullName || !String(fullName).trim()) return '';
+  return String(fullName).trim().split(/\s+/)[0];
+}
+
+function updateDashboardGreet(user) {
+  const span = document.getElementById('dash-greet-name');
+  if (!span) return;
+  if (sessionStorage.getItem('cayena_offline') === '1') {
+    span.textContent = 'Consultor';
+    return;
+  }
+  if (user && user.email) {
+    const fromProfile = currentProfile && greetFirstNameFromProfile(currentProfile.full_name);
+    span.textContent = fromProfile || user.email.split('@')[0] || 'Consultor';
+    return;
+  }
+  span.textContent = 'Consultor';
+}
+
 function updateHdrUser(user) {
+  const session = document.getElementById('hdr-session');
   const el = document.getElementById('hdr-user');
   const out = document.getElementById('btn-logout');
+  const roleEl = document.getElementById('hdr-role');
+  const show = !!user;
+  if (session) session.style.display = show ? 'flex' : 'none';
   if (el) {
-    el.style.display = user ? 'inline' : 'none';
     el.textContent = user && user.email ? user.email.split('@')[0] : '';
   }
-  if (out) out.style.display = user ? 'inline-block' : 'none';
+  if (out) out.style.display = show ? 'inline-flex' : 'none';
+  if (roleEl) {
+    const isAdm = show && currentProfile && currentProfile.role === 'admin';
+    roleEl.style.display = isAdm ? 'inline-flex' : 'none';
+  }
+  updateDashboardGreet(user);
 }
 
-async function authSignIn() {
-  const msg = document.getElementById('auth-msg');
-  if (msg) msg.textContent = '';
-  const email = (document.getElementById('auth-email') && document.getElementById('auth-email').value) || '';
-  const pass = (document.getElementById('auth-pass') && document.getElementById('auth-pass').value) || '';
-  const sb = await ensureSupabase();
-  if (!sb) {
-    toast('Supabase não configurado');
-    return;
-  }
-  const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
-  if (error) {
-    if (msg) msg.textContent = error.message;
-    toast(error.message);
-    return;
-  }
-  sessionStorage.removeItem('cayena_offline');
-  await loadClientsFromSupabase();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  updateHdrUser(user);
-  hideAuthOverlay();
-  toast('Conectado', true);
+function setAuthFieldError(on) {
+  ['auth-fg-email', 'auth-fg-pass'].forEach(function (id) {
+    const fg = document.getElementById(id);
+    if (fg) fg.classList.toggle('fi-err', !!on);
+  });
 }
 
-async function authSignOut() {
+function authTogglePass() {
+  const inp = document.getElementById('auth-pass');
+  const btn = document.getElementById('auth-btn-showpass');
+  if (!inp || !btn) return;
+  const reveal = inp.type === 'password';
+  inp.type = reveal ? 'text' : 'password';
+  btn.classList.toggle('is-on', reveal);
+  btn.setAttribute('aria-label', reveal ? 'Ocultar senha' : 'Mostrar senha');
+  btn.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+}
+
+function authResetPassToggle() {
+  const inp = document.getElementById('auth-pass');
+  const btn = document.getElementById('auth-btn-showpass');
+  if (inp) inp.type = 'password';
+  if (btn) {
+    btn.classList.remove('is-on');
+    btn.setAttribute('aria-label', 'Mostrar senha');
+    btn.setAttribute('aria-pressed', 'false');
+  }
+}
+
+function friendlyAuthError(msg) {
+  const m = String(msg || '').toLowerCase();
+  if (m.includes('invalid login') || m.includes('invalid_credentials')) {
+    return 'E-mail ou senha incorretos. Confira e tente de novo.';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar (verifique a caixa de entrada).';
+  }
+  if (m.includes('too many requests')) {
+    return 'Muitas tentativas. Espere um minuto e tente de novo.';
+  }
+  return msg || 'Não foi possível entrar.';
+}
+
+function openLogoutConfirm() {
+  const ov = document.getElementById('ov-logout');
+  if (ov) ov.classList.add('on');
+}
+
+async function confirmAuthSignOut() {
+  closeOv('ov-logout');
   sessionStorage.removeItem('cayena_offline');
   const sb = await ensureSupabase();
   if (sb) await sb.auth.signOut();
@@ -298,7 +355,47 @@ async function authSignOut() {
   updateHdrUser(null);
   updateAdminEntry();
   showAuthOverlay();
-  toast('Sessão encerrada');
+  toast('Você saiu da conta');
+}
+
+async function authSignIn() {
+  const msg = document.getElementById('auth-msg');
+  const btn = document.getElementById('auth-btn-in');
+  if (msg) msg.textContent = '';
+  setAuthFieldError(false);
+  const email = (document.getElementById('auth-email') && document.getElementById('auth-email').value) || '';
+  const pass = (document.getElementById('auth-pass') && document.getElementById('auth-pass').value) || '';
+  const sb = await ensureSupabase();
+  if (!sb) {
+    toast('Supabase não configurado');
+    return;
+  }
+  if (btn) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    const prev = btn.textContent;
+    btn.dataset.prevLabel = prev;
+    btn.textContent = 'Entrando…';
+  }
+  const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+  if (btn) {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.textContent = btn.dataset.prevLabel || 'Entrar';
+  }
+  if (error) {
+    setAuthFieldError(true);
+    const friendly = friendlyAuthError(error.message);
+    if (msg) msg.textContent = friendly;
+    toast(friendly);
+    return;
+  }
+  sessionStorage.removeItem('cayena_offline');
+  await loadClientsFromSupabase();
+  authResetPassToggle();
+  hideAuthOverlay();
+  setAuthFieldError(false);
+  toast('Conectado', true);
 }
 
 function authUseOffline() {
@@ -339,6 +436,7 @@ async function loadMyProfile() {
     currentProfile = data || { role: 'seller' };
   }
   updateAdminEntry();
+  updateHdrUser(user);
 }
 
 function updateAdminEntry() {
@@ -424,11 +522,13 @@ async function bootstrapAuth() {
     toast('Não foi possível carregar o Supabase. Modo offline.');
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
     hideAuthOverlay();
+    updateHdrUser(null);
     return;
   }
   if (!supabaseClient) {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
     hideAuthOverlay();
+    updateHdrUser(null);
     return;
   }
   const {
@@ -436,19 +536,19 @@ async function bootstrapAuth() {
   } = await supabaseClient.auth.getSession();
   if (session && session.user) {
     await loadClientsFromSupabase();
-    updateHdrUser(session.user);
     hideAuthOverlay();
   } else if (sessionStorage.getItem('cayena_offline') === '1') {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
     hideAuthOverlay();
   } else {
+    updateHdrUser(null);
     showAuthOverlay();
   }
   supabaseClient.auth.onAuthStateChange(function (_event, sess) {
     if (sess && sess.user) {
-      loadClientsFromSupabase();
-      updateHdrUser(sess.user);
-      hideAuthOverlay();
+      loadClientsFromSupabase().then(function () {
+        hideAuthOverlay();
+      });
     } else if (!sessionStorage.getItem('cayena_offline')) {
       DB = [];
       currentProfile = { role: 'seller' };
