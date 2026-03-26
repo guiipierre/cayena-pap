@@ -4,6 +4,20 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 const DIAS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const pad = (n) => String(n).padStart(2, '0');
 
+function normalizeCnpjDigits(s) {
+  return String(s || '')
+    .replace(/\D/g, '')
+    .slice(0, 14);
+}
+
+function formatCnpjDisplay(digits) {
+  const d = String(digits || '')
+    .replace(/\D/g, '')
+    .slice(0, 14);
+  if (d.length !== 14) return '';
+  return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+}
+
 document.getElementById('gdate').textContent =
   DIAS[now.getDay()] + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()];
 
@@ -194,12 +208,14 @@ function sortVisitasDesc(visitas) {
 
 function mapClientRow(row) {
   const visitas = sortVisitasDesc((row.visits || []).map(mapVisitRow));
+  const cnpjShown =
+    row.cnpj_display || row.cnpj || formatCnpjDisplay(row.cnpj_normalized) || '';
   return {
     id: row.id,
     nome: row.nome,
     tipo: row.tipo || 'Outro',
     status: row.status || 'novo',
-    cnpj: row.cnpj || '',
+    cnpj: cnpjShown,
     tel: row.tel || '',
     email: row.email_cliente || '',
     rua: row.rua || '',
@@ -438,17 +454,111 @@ function renderDashboard() {
   }
 }
 
-async function loadClientsFromSupabase() {
+function friendlySupabaseLoadError(msg) {
+  const m = String(msg || '');
+  if (m.includes("'public.clients'") || m.includes('"public.clients"') || m.includes('public.clients')) {
+    return (
+      'O app ainda está usando uma versão antiga (tabela clients). Faça um deploy do site atual e atualize a página com recarregamento forçado (Safari: segurar ⟳; Chrome: Cmd+Shift+R).'
+    );
+  }
+  return 'Erro ao carregar clientes: ' + m;
+}
+
+/** Mesma lista de colunas usada em loadClientsFromSupabase (visitas aninhadas). */
+const ESTABLISHMENT_SELECT_WITH_VISITS =
+  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at)';
+
+function refreshOpenClientPickers() {
+  const ovLem = document.getElementById('ov-lem');
+  if (ovLem && ovLem.classList.contains('on')) {
+    const lq = document.getElementById('lem-q');
+    renderLemList(lq ? lq.value : '');
+  }
+  const ovPick = document.getElementById('ov-pick-cli');
+  if (ovPick && ovPick.classList.contains('on')) {
+    const pq = document.getElementById('pick-cli-q');
+    renderPickCliList(pq ? pq.value : '');
+  }
+}
+
+/**
+ * Garante um estabelecimento no DB local após cadastro (útil se o reload completo falhar).
+ */
+async function mergeEstablishmentIntoDb(sb, establishmentId) {
+  if (!sb || !establishmentId) return;
+  let q = sb
+    .from('establishments')
+    .select(ESTABLISHMENT_SELECT_WITH_VISITS)
+    .eq('id', establishmentId)
+    .order('created_at', { ascending: false, foreignTable: 'visits' });
+  const { data, error } = await q.maybeSingle();
+  if (error || !data) return;
+  const mapped = mapClientRow(data);
+  const idx = DB.findIndex(function (c) {
+    return String(c.id) === String(establishmentId);
+  });
+  if (idx >= 0) DB.splice(idx, 1);
+  DB.unshift(mapped);
+  DB.sort(function (a, b) {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return tb - ta;
+  });
+  renderDashboard();
+  if (typeof refreshMapMarkers === 'function') {
+    refreshMapMarkers({ doInitialFit: true });
+  }
+  const cl = document.getElementById('cli-list');
+  if (cl && document.getElementById('scr-clis') && document.getElementById('scr-clis').classList.contains('on')) {
+    renderCliList([...DB]);
+  }
+  refreshOpenClientPickers();
+}
+
+async function loadClientsFromSupabase(opts) {
+  const silent = opts && opts.silent;
   const sb = await ensureSupabase();
   if (!sb) return;
-  const { data, error } = await sb
-    .from('clients')
-    .select(
-      'id,user_id,nome,tipo,status,cnpj,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at)'
-    )
+  const { data: authData } = await sb.auth.getUser();
+  const user = authData && authData.user;
+  if (!user) return;
+
+  const { data: assigns, error: errAssign } = await sb
+    .from('establishment_assignments')
+    .select('establishment_id')
+    .eq('user_id', user.id);
+  if (errAssign) {
+    if (!silent) toast(friendlySupabaseLoadError(errAssign.message));
+    await loadMyProfile();
+    return;
+  }
+  const ids = (assigns || []).map(function (a) {
+    return a.establishment_id;
+  });
+  if (ids.length === 0) {
+    DB = [];
+    renderDashboard();
+    if (typeof refreshMapMarkers === 'function') {
+      refreshMapMarkers({ doInitialFit: true });
+    }
+    const cl = document.getElementById('cli-list');
+    if (cl && document.getElementById('scr-clis') && document.getElementById('scr-clis').classList.contains('on')) {
+      renderCliList([...DB]);
+    }
+    refreshOpenClientPickers();
+    await loadMyProfile();
+    return;
+  }
+
+  let q = sb
+    .from('establishments')
+    .select(ESTABLISHMENT_SELECT_WITH_VISITS)
+    .in('id', ids)
     .order('created_at', { ascending: false });
+  q = q.order('created_at', { ascending: false, foreignTable: 'visits' });
+  const { data, error } = await q;
   if (error) {
-    toast('Erro ao carregar clientes: ' + error.message);
+    if (!silent) toast(friendlySupabaseLoadError(error.message));
     await loadMyProfile();
     return;
   }
@@ -461,6 +571,7 @@ async function loadClientsFromSupabase() {
   if (cl && document.getElementById('scr-clis') && document.getElementById('scr-clis').classList.contains('on')) {
     renderCliList([...DB]);
   }
+  refreshOpenClientPickers();
   await loadMyProfile();
 }
 
@@ -782,9 +893,12 @@ async function bootstrapAuth() {
     updateHdrUser(null);
     showAuthOverlay();
   }
-  supabaseClient.auth.onAuthStateChange(function (_event, sess) {
+  supabaseClient.auth.onAuthStateChange(function (event, sess) {
+    if (event === 'TOKEN_REFRESHED') {
+      return;
+    }
     if (sess && sess.user) {
-      loadClientsFromSupabase().then(function () {
+      loadClientsFromSupabase({ silent: event === 'INITIAL_SESSION' }).then(function () {
         hideAuthOverlay();
       });
     } else if (!sessionStorage.getItem('cayena_offline')) {
@@ -1298,7 +1412,7 @@ async function subLembrete() {
     const remindAt = new Date(d + 'T' + t + ':00');
     const { error } = await sb.from('reminders').insert({
       user_id: user.id,
-      client_id: c.id,
+      establishment_id: c.id,
       remind_at: remindAt.toISOString(),
       notes: obs || null,
       status: 'pending',
@@ -1440,32 +1554,33 @@ async function subCad() {
 
   let newId;
   if (sb && user && !sessionStorage.getItem('cayena_offline')) {
-    const row = {
-      user_id: user.id,
-      nome,
-      tipo,
-      status: 'novo',
-      cnpj,
-      tel,
-      email_cliente: '',
-      rua,
-      num,
-      comp,
-      bairro,
-      cidade,
-      estado: estado || 'SP',
-      cep,
-      lat: parseFloat(lat),
-      lng: parseFloat(lng),
-      obs,
-    };
-    const { data, error } = await sb.from('clients').insert(row).select().single();
+    const cnpjNorm = normalizeCnpjDigits(cnpj);
+    const { data: estId, error } = await sb.rpc('register_establishment', {
+      p_cnpj_normalized: cnpjNorm,
+      p_cnpj_display: cnpj.trim(),
+      p_nome: nome,
+      p_tipo: tipo,
+      p_status: 'novo',
+      p_tel: tel,
+      p_email_cliente: '',
+      p_rua: rua,
+      p_num: num,
+      p_comp: comp,
+      p_bairro: bairro,
+      p_cidade: cidade,
+      p_estado: estado || 'SP',
+      p_cep: cep,
+      p_lat: parseFloat(lat),
+      p_lng: parseFloat(lng),
+      p_obs: obs,
+    });
     if (error) {
       toast('Erro ao salvar: ' + error.message);
       return;
     }
-    newId = data.id;
-    DB.push(mapClientRow({ ...data, visits: [] }));
+    newId = estId;
+    await loadClientsFromSupabase();
+    await mergeEstablishmentIntoDb(sb, estId);
   } else {
     newId = Math.max(...DB.map((c) => (typeof c.id === 'number' ? c.id : 0)), -1) + 1;
     DB.push({
@@ -1660,7 +1775,7 @@ async function subVis() {
     const isoDate =
       d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     const row = {
-      client_id: currCli.id,
+      establishment_id: currCli.id,
       user_id: user.id,
       visit_date: isoDate,
       result: currRes,
