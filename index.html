@@ -10,6 +10,20 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 </head>
 <body>
+<div class="ov" id="ov-auth" aria-hidden="true">
+  <div class="auth-card">
+    <div class="auth-brand">cayena</div>
+    <div class="auth-sub">Entre com o acesso que a equipe liberou para você.</div>
+    <div class="fg"><div class="flbl">E-mail</div><input class="fi" type="email" id="auth-email" autocomplete="username" placeholder="voce@empresa.com"></div>
+    <div class="fg"><div class="flbl">Senha</div><input class="fi" type="password" id="auth-pass" autocomplete="current-password" placeholder="••••••••"></div>
+    <div class="auth-row">
+      <button type="button" class="btnp" id="auth-btn-in" onclick="authSignIn()">Entrar</button>
+    </div>
+    <button type="button" class="auth-skip" id="auth-btn-skip" onclick="authUseOffline()">Continuar sem login (dados locais)</button>
+    <p class="auth-hint" id="auth-msg"></p>
+  </div>
+</div>
+
 <div id="app">
   <header class="hdr">
     <div class="hdr-left">
@@ -17,6 +31,8 @@
       <div class="hdr-sub">Consultor de Vendas</div>
     </div>
     <div class="hdr-right">
+      <span class="hdr-user" id="hdr-user" style="display:none"></span>
+      <button type="button" class="hdr-out" id="btn-logout" style="display:none" onclick="authSignOut()">Sair</button>
       <div class="hdr-today">Hoje: <b id="cnt">7</b></div>
       <div class="hdr-av">RV</div>
     </div>
@@ -55,6 +71,20 @@
           <div class="chart-hdr">Visitas recentes (todos os clientes)</div>
         </div>
         <div id="hist-global"></div>
+      </div>
+    </div>
+
+    <div class="scr" id="scr-admin">
+      <div class="admin-wrap">
+        <button type="button" class="backbtn" onclick="goScrFromAdmin()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="hist-title" style="margin-bottom:8px">Administração</div>
+        <p class="admin-lead">Crie o acesso do vendedor (e-mail e senha). O time interno promove administradores no Supabase.</p>
+        <div class="fg"><div class="flbl">Nome do vendedor</div><input class="fi" id="adm-nome" type="text" autocomplete="name" placeholder="Nome completo"></div>
+        <div class="fg"><div class="flbl">Telefone</div><input class="fi" id="adm-tel" type="tel" autocomplete="tel" placeholder="(11) 99999-9999"></div>
+        <div class="fg"><div class="flbl">E-mail <span class="req">*</span></div><input class="fi" id="adm-email" type="email" autocomplete="off" placeholder="vendedor@empresa.com"></div>
+        <div class="fg"><div class="flbl">Senha inicial <span class="req">*</span></div><input class="fi" id="adm-pass" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
+        <button type="button" class="btnp" style="width:100%;margin-top:10px" onclick="adminCreateSeller()">Criar vendedor</button>
+        <p class="admin-foot" id="adm-msg"></p>
       </div>
     </div>
 
@@ -220,6 +250,7 @@
     <div class="shandle"></div>
     <div class="shdr"><div class="stit">Mais opções</div><div class="scls" onclick="closeOv('ov-more')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
     <div class="more-list">
+      <button type="button" class="more-item" id="more-admin" style="display:none" onclick="closeOv('ov-more');openAdminTab()">Administração</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');goScr('map')">Mapa</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Notificações</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Configurações</button>
@@ -336,6 +367,7 @@
 </div>
 
 <div class="toast" id="toastel"></div>
+<script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script src="app.js" defer></script>
 </body>

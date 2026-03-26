@@ -6,7 +6,7 @@ const pad = (n) => String(n).padStart(2, '0');
 document.getElementById('gdate').textContent =
   DIAS[now.getDay()] + ', ' + now.getDate() + ' de ' + MESES[now.getMonth()];
 
-const DB = [
+const MOCK_DB_SEED = [
   {
     id: 0,
     nome: 'Pizzaria do Zé',
@@ -109,6 +109,367 @@ const DB = [
   },
 ];
 
+/** @type {typeof MOCK_DB_SEED} */
+let DB = [];
+
+let supabaseClient = null;
+let supabaseReadyPromise = null;
+
+function isSupabaseConfigured() {
+  const u = window.SUPABASE_URL;
+  const k = window.SUPABASE_ANON_KEY;
+  return !!(u && k && String(u).startsWith('http'));
+}
+
+function updateAuthSkipVisibility() {
+  const skip = document.getElementById('auth-btn-skip');
+  if (!skip) return;
+  skip.style.display = isSupabaseConfigured() ? 'none' : '';
+}
+
+async function ensureSupabase() {
+  if (supabaseClient) return supabaseClient;
+  if (!isSupabaseConfigured()) return null;
+  if (!supabaseReadyPromise) {
+    supabaseReadyPromise = import('https://esm.sh/@supabase/supabase-js@2')
+      .then(function (mod) {
+        supabaseClient = mod.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+          },
+        });
+        return supabaseClient;
+      })
+      .catch(function (e) {
+        console.warn(e);
+        supabaseReadyPromise = null;
+        return null;
+      });
+  }
+  return supabaseReadyPromise;
+}
+
+function mapVisitRow(v) {
+  let dataStr = '';
+  if (v.visit_date) {
+    const raw = String(v.visit_date).split('T')[0];
+    const p = raw.split('-');
+    if (p.length === 3) {
+      dataStr = p[2] + '/' + p[1] + '/' + p[0];
+    }
+  }
+  if (!dataStr && v.created_at) {
+    const dt = new Date(v.created_at);
+    dataStr = pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear();
+  }
+  return {
+    data: dataStr,
+    res: v.result,
+    rep: v.rep_name || '',
+    obs: v.obs || '',
+    celComprador: v.cel_comprador || '',
+    nomeComprador: v.nome_comprador || '',
+    tamEstab: v.tam_estab || '',
+    tipoEstabChip: v.tipo_estab_chip || '',
+  };
+}
+
+function sortVisitasDesc(visitas) {
+  return (visitas || []).slice().sort(function (a, b) {
+    const pa = String(a.data).split('/').map(Number);
+    const pb = String(b.data).split('/').map(Number);
+    if (pa.length < 3 || pb.length < 3) return 0;
+    const da = new Date(pa[2], pa[1] - 1, pa[0]);
+    const db = new Date(pb[2], pb[1] - 1, pb[0]);
+    return db - da;
+  });
+}
+
+function mapClientRow(row) {
+  const visitas = sortVisitasDesc((row.visits || []).map(mapVisitRow));
+  return {
+    id: row.id,
+    nome: row.nome,
+    tipo: row.tipo || 'Outro',
+    status: row.status || 'novo',
+    cnpj: row.cnpj || '',
+    tel: row.tel || '',
+    email: row.email_cliente || '',
+    rua: row.rua || '',
+    num: row.num || '',
+    comp: row.comp || '',
+    bairro: row.bairro || '',
+    cidade: row.cidade || '',
+    estado: row.estado || '',
+    cep: row.cep || '',
+    lat: row.lat != null ? String(row.lat) : '',
+    lng: row.lng != null ? String(row.lng) : '',
+    obs: row.obs || '',
+    visitas: visitas,
+  };
+}
+
+async function loadClientsFromSupabase() {
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from('clients')
+    .select(
+      'id,user_id,nome,tipo,status,cnpj,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at)'
+    )
+    .order('created_at', { ascending: false });
+  if (error) {
+    toast('Erro ao carregar clientes: ' + error.message);
+    await loadMyProfile();
+    return;
+  }
+  DB = (data || []).map(mapClientRow);
+  if (typeof refreshMapMarkers === 'function') {
+    refreshMapMarkers({ doInitialFit: true });
+  }
+  const cl = document.getElementById('cli-list');
+  if (cl && document.getElementById('scr-clis') && document.getElementById('scr-clis').classList.contains('on')) {
+    renderCliList([...DB]);
+  }
+  await loadMyProfile();
+}
+
+function showAuthOverlay() {
+  const o = document.getElementById('ov-auth');
+  if (o) {
+    o.classList.add('on');
+    o.setAttribute('aria-hidden', 'false');
+  }
+  updateAuthSkipVisibility();
+}
+
+function hideAuthOverlay() {
+  const o = document.getElementById('ov-auth');
+  if (o) {
+    o.classList.remove('on');
+    o.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function updateHdrUser(user) {
+  const el = document.getElementById('hdr-user');
+  const out = document.getElementById('btn-logout');
+  if (el) {
+    el.style.display = user ? 'inline' : 'none';
+    el.textContent = user && user.email ? user.email.split('@')[0] : '';
+  }
+  if (out) out.style.display = user ? 'inline-block' : 'none';
+}
+
+async function authSignIn() {
+  const msg = document.getElementById('auth-msg');
+  if (msg) msg.textContent = '';
+  const email = (document.getElementById('auth-email') && document.getElementById('auth-email').value) || '';
+  const pass = (document.getElementById('auth-pass') && document.getElementById('auth-pass').value) || '';
+  const sb = await ensureSupabase();
+  if (!sb) {
+    toast('Supabase não configurado');
+    return;
+  }
+  const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password: pass });
+  if (error) {
+    if (msg) msg.textContent = error.message;
+    toast(error.message);
+    return;
+  }
+  sessionStorage.removeItem('cayena_offline');
+  await loadClientsFromSupabase();
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  updateHdrUser(user);
+  hideAuthOverlay();
+  toast('Conectado', true);
+}
+
+async function authSignOut() {
+  sessionStorage.removeItem('cayena_offline');
+  const sb = await ensureSupabase();
+  if (sb) await sb.auth.signOut();
+  DB = [];
+  currentProfile = { role: 'seller' };
+  updateHdrUser(null);
+  updateAdminEntry();
+  showAuthOverlay();
+  toast('Sessão encerrada');
+}
+
+function authUseOffline() {
+  sessionStorage.setItem('cayena_offline', '1');
+  DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+  hideAuthOverlay();
+  updateHdrUser(null);
+  currentProfile = { role: 'seller' };
+  updateAdminEntry();
+  if (typeof refreshMapMarkers === 'function') {
+    refreshMapMarkers({ doInitialFit: true });
+  }
+}
+
+/** Perfil do usuário logado (role = admin | seller) */
+let currentProfile = { role: 'seller' };
+
+async function loadMyProfile() {
+  const sb = await ensureSupabase();
+  if (!sb || sessionStorage.getItem('cayena_offline') === '1') {
+    currentProfile = { role: 'seller' };
+    updateAdminEntry();
+    return;
+  }
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) {
+    currentProfile = { role: 'seller' };
+    updateAdminEntry();
+    return;
+  }
+  const { data, error } = await sb.from('profiles').select('role, full_name, phone').eq('id', user.id).single();
+  if (error) {
+    console.warn(error);
+    currentProfile = { role: 'seller' };
+  } else {
+    currentProfile = data || { role: 'seller' };
+  }
+  updateAdminEntry();
+}
+
+function updateAdminEntry() {
+  const btn = document.getElementById('more-admin');
+  if (!btn) return;
+  const show = currentProfile && currentProfile.role === 'admin';
+  btn.style.display = show ? '' : 'none';
+}
+
+function openAdminTab() {
+  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+  goScr('admin');
+}
+
+function goScrFromAdmin() {
+  goScr(prevScr || 'ana');
+}
+
+async function adminCreateSeller() {
+  const msg = document.getElementById('adm-msg');
+  if (msg) msg.textContent = '';
+  const full_name = (document.getElementById('adm-nome') && document.getElementById('adm-nome').value.trim()) || '';
+  const phone = (document.getElementById('adm-tel') && document.getElementById('adm-tel').value.trim()) || '';
+  const email = (document.getElementById('adm-email') && document.getElementById('adm-email').value.trim()) || '';
+  const password = (document.getElementById('adm-pass') && document.getElementById('adm-pass').value) || '';
+  const sb = await ensureSupabase();
+  if (!sb) {
+    toast('Supabase não configurado');
+    return;
+  }
+  const {
+    data: { session },
+  } = await sb.auth.getSession();
+  if (!session) {
+    toast('Faça login como administrador');
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin-create-user', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({ email, password, full_name, phone }),
+    });
+    const j = await res.json().catch(function () {
+      return {};
+    });
+    if (!res.ok) {
+      const err = j.error || res.statusText || 'Erro';
+      if (msg) msg.textContent = err;
+      toast(err);
+      return;
+    }
+    if (msg) msg.textContent = 'Vendedor criado: ' + (j.email || email);
+    toast('✓ Vendedor criado', true);
+    ['adm-nome', 'adm-tel', 'adm-email', 'adm-pass'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  } catch (e) {
+    console.warn(e);
+    const hint =
+      'Rota /api só existe no deploy (Vercel) ou com `vercel dev`. Teste após publicar ou rode o projeto com vercel dev.';
+    if (msg) msg.textContent = hint;
+    toast('API indisponível neste ambiente');
+  }
+}
+
+async function bootstrapAuth() {
+  updateAuthSkipVisibility();
+  if (!isSupabaseConfigured()) {
+    DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    hideAuthOverlay();
+    updateHdrUser(null);
+    return;
+  }
+  try {
+    await ensureSupabase();
+  } catch (e) {
+    console.warn(e);
+    toast('Não foi possível carregar o Supabase. Modo offline.');
+    DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    hideAuthOverlay();
+    return;
+  }
+  if (!supabaseClient) {
+    DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    hideAuthOverlay();
+    return;
+  }
+  const {
+    data: { session },
+  } = await supabaseClient.auth.getSession();
+  if (session && session.user) {
+    await loadClientsFromSupabase();
+    updateHdrUser(session.user);
+    hideAuthOverlay();
+  } else if (sessionStorage.getItem('cayena_offline') === '1') {
+    DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    hideAuthOverlay();
+  } else {
+    showAuthOverlay();
+  }
+  supabaseClient.auth.onAuthStateChange(function (_event, sess) {
+    if (sess && sess.user) {
+      loadClientsFromSupabase();
+      updateHdrUser(sess.user);
+      hideAuthOverlay();
+    } else if (!sessionStorage.getItem('cayena_offline')) {
+      DB = [];
+      currentProfile = { role: 'seller' };
+      updateHdrUser(null);
+      updateAdminEntry();
+      if (isSupabaseConfigured()) showAuthOverlay();
+    }
+  });
+}
+
+function initCliListDelegation() {
+  const el = document.getElementById('cli-list');
+  if (!el || el._delegation) return;
+  el._delegation = true;
+  el.addEventListener('click', function (ev) {
+    const card = ev.target.closest('.ccard');
+    if (!card || !card.getAttribute('data-cid')) return;
+    openCli(card.getAttribute('data-cid'));
+  });
+}
+
 let currCli = null;
 let prevScr = 'ana';
 let pinIdx = null;
@@ -118,7 +479,7 @@ let currSeg = 'peq';
 let currChip = null;
 
 function getCliById(id) {
-  return DB.find((c) => c.id === id);
+  return DB.find((c) => String(c.id) === String(id));
 }
 
 function goScr(s) {
@@ -258,8 +619,8 @@ function closePopup() {
 
 function pinAct() {
   closePopup();
-  if (pinIdx >= 0) openCli(pinIdx);
-  else toast('Cliente sem ficha (mock)');
+  if (pinIdx != null && getCliById(pinIdx)) openCli(pinIdx);
+  else toast('Cliente não encontrado');
 }
 
 let mapInstance = null;
@@ -506,7 +867,7 @@ function renderPickCliList(raw) {
     .map(
       (c) =>
         '<button type="button" class="pick-cli-row" onclick="pickCliForVis(' +
-        c.id +
+        JSON.stringify(c.id) +
         ')"><span class="pick-cli-name">' +
         escapeHtml(c.nome) +
         '</span><span class="pick-cli-meta">' +
@@ -551,9 +912,9 @@ function renderLemList(raw) {
     .map(
       (c) =>
         '<button type="button" class="pick-cli-row' +
-        (lemPickId === c.id ? ' on' : '') +
+        (String(lemPickId) === String(c.id) ? ' on' : '') +
         '" onclick="pickLemCli(' +
-        c.id +
+        JSON.stringify(c.id) +
         ')"><span class="pick-cli-name">' +
         escapeHtml(c.nome) +
         '</span><span class="pick-cli-meta">' +
@@ -570,7 +931,7 @@ function pickLemCli(id) {
   renderLemList(document.getElementById('lem-q').value);
 }
 
-function subLembrete() {
+async function subLembrete() {
   if (lemPickId === null) {
     toast('⚠️ Selecione um cliente');
     return;
@@ -584,6 +945,28 @@ function subLembrete() {
   const c = getCliById(lemPickId);
   if (!c) return;
   const obs = (document.getElementById('lem-obs').value || '').trim();
+
+  const sb = await ensureSupabase();
+  let user = null;
+  if (sb) {
+    const { data: u } = await sb.auth.getUser();
+    user = u.user;
+  }
+  if (sb && user && !sessionStorage.getItem('cayena_offline')) {
+    const remindAt = new Date(d + 'T' + t + ':00');
+    const { error } = await sb.from('reminders').insert({
+      user_id: user.id,
+      client_id: c.id,
+      remind_at: remindAt.toISOString(),
+      notes: obs || null,
+      status: 'pending',
+    });
+    if (error) {
+      toast('Erro ao salvar lembrete: ' + error.message);
+      return;
+    }
+  }
+
   toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
   closeOv('ov-lem');
 }
@@ -635,7 +1018,7 @@ function updCad() {
 function cadNext() {
   if (!valCad(cadStep)) return;
   if (cadStep === 3) {
-    subCad();
+    void subCad();
     return;
   }
   document.getElementById('cs' + cadStep).className = 'fs';
@@ -690,7 +1073,7 @@ function valCad(s) {
   return true;
 }
 
-function subCad() {
+async function subCad() {
   const nome = document.getElementById('c-nome').value.trim();
   const cnpj = document.getElementById('c-cnpj').value;
   const tel = document.getElementById('c-tel').value;
@@ -706,27 +1089,64 @@ function subCad() {
   const lng = document.getElementById('c-lng').value;
   const obs = document.getElementById('c-obs').value.trim();
 
-  const newId = Math.max(...DB.map((c) => c.id), -1) + 1;
-  DB.push({
-    id: newId,
-    nome,
-    tipo,
-    status: 'novo',
-    cnpj,
-    tel,
-    email: '',
-    rua,
-    num,
-    comp,
-    bairro,
-    cidade,
-    estado: estado || 'SP',
-    cep,
-    lat,
-    lng,
-    obs,
-    visitas: [],
-  });
+  const sb = await ensureSupabase();
+  let user = null;
+  if (sb) {
+    const { data: u } = await sb.auth.getUser();
+    user = u.user;
+  }
+
+  let newId;
+  if (sb && user && !sessionStorage.getItem('cayena_offline')) {
+    const row = {
+      user_id: user.id,
+      nome,
+      tipo,
+      status: 'novo',
+      cnpj,
+      tel,
+      email_cliente: '',
+      rua,
+      num,
+      comp,
+      bairro,
+      cidade,
+      estado: estado || 'SP',
+      cep,
+      lat: parseFloat(lat),
+      lng: parseFloat(lng),
+      obs,
+    };
+    const { data, error } = await sb.from('clients').insert(row).select().single();
+    if (error) {
+      toast('Erro ao salvar: ' + error.message);
+      return;
+    }
+    newId = data.id;
+    DB.push(mapClientRow({ ...data, visits: [] }));
+  } else {
+    newId = Math.max(...DB.map((c) => (typeof c.id === 'number' ? c.id : 0)), -1) + 1;
+    DB.push({
+      id: newId,
+      nome,
+      tipo,
+      status: 'novo',
+      cnpj,
+      tel,
+      email: '',
+      rua,
+      num,
+      comp,
+      bairro,
+      cidade,
+      estado: estado || 'SP',
+      cep,
+      lat,
+      lng,
+      obs,
+      visitas: [],
+    });
+  }
 
   refreshMapMarkers({ focusClientId: newId });
 
@@ -842,7 +1262,7 @@ function visitResultFromCards() {
   return null;
 }
 
-function subVis() {
+async function subVis() {
   if (!currCli) return;
 
   const celRaw = document.getElementById('v-cel')?.value.replace(/\D/g, '') || '';
@@ -878,7 +1298,7 @@ function subVis() {
   const d = new Date();
   const dataStr = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
 
-  currCli.visitas.unshift({
+  const visitPayload = {
     data: dataStr,
     res: currRes,
     rep: 'Rafael Vasconcelos',
@@ -887,7 +1307,40 @@ function subVis() {
     nomeComprador: nome,
     tamEstab: currSeg === 'peq' ? 'Pequeno' : 'Grande',
     tipoEstabChip: currChip || '',
-  });
+  };
+
+  const sb = await ensureSupabase();
+  let user = null;
+  if (sb) {
+    const { data: u } = await sb.auth.getUser();
+    user = u.user;
+  }
+
+  if (sb && user && !sessionStorage.getItem('cayena_offline')) {
+    const isoDate =
+      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const row = {
+      client_id: currCli.id,
+      user_id: user.id,
+      visit_date: isoDate,
+      result: currRes,
+      rep_name: visitPayload.rep,
+      obs,
+      cel_comprador: visitPayload.celComprador,
+      nome_comprador: nome,
+      tam_estab: visitPayload.tamEstab,
+      tipo_estab_chip: visitPayload.tipoEstabChip,
+    };
+    const { error } = await sb.from('visits').insert(row);
+    if (error) {
+      toast('Erro ao salvar visita: ' + error.message);
+      return;
+    }
+    await loadClientsFromSupabase();
+    currCli = getCliById(currCli.id) || currCli;
+  } else {
+    currCli.visitas.unshift(visitPayload);
+  }
 
   buildHist(currCli);
   swTab('hist');
@@ -939,9 +1392,9 @@ function renderCliList(list) {
         ? '<span class="ccard-vis-tag has">📅 ' + lastVis.data + '</span>'
         : '<span class="ccard-vis-tag none">Sem visitas</span>';
       return (
-        '<div class="ccard" onclick="openCli(' +
-        c.id +
-        ')">' +
+        '<div class="ccard" data-cid="' +
+        String(c.id).replace(/"/g, '&quot;') +
+        '">' +
         '<div class="ccard-main">' +
         '<div class="ccard-ico">' +
         ico +
@@ -980,7 +1433,14 @@ function renderCliList(list) {
 function filterClis() {
   const q = document.getElementById('cli-search').value.toLowerCase().trim();
   renderCliList(
-    q ? DB.filter((c) => c.nome.toLowerCase().includes(q) || c.cnpj.includes(q) || c.bairro.toLowerCase().includes(q)) : [...DB]
+    q
+      ? DB.filter(
+          (c) =>
+            c.nome.toLowerCase().includes(q) ||
+            (c.cnpj && c.cnpj.includes(q)) ||
+            c.bairro.toLowerCase().includes(q)
+        )
+      : [...DB]
   );
 }
 
@@ -1068,4 +1528,9 @@ document.getElementById('v-cel')?.addEventListener('input', (e) => {
     v.length <= 10
       ? v.replace(/^(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3')
       : v.replace(/^(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  initCliListDelegation();
+  bootstrapAuth();
 });
