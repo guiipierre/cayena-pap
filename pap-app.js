@@ -681,10 +681,14 @@ function updateDashboardGreet(user) {
 
 function updateMoreMenuLoginRecover() {
   const el = document.getElementById('more-login-recover');
+  const card = document.getElementById('more-card-conta');
+  const title = document.getElementById('more-title-conta');
   if (!el) return;
   const show =
     isSupabaseConfigured() && sessionStorage.getItem('cayena_offline') === '1';
   el.style.display = show ? '' : 'none';
+  if (card) card.style.display = show ? '' : 'none';
+  if (title) title.style.display = show ? '' : 'none';
 }
 
 function updateHdrUser(user) {
@@ -890,9 +894,11 @@ async function loadMyProfile() {
 function updateAdminEntry() {
   const btn = document.getElementById('more-admin');
   const rp = document.getElementById('more-route-plan');
+  const cardAdm = document.getElementById('more-card-admin');
   const show = currentProfile && currentProfile.role === 'admin';
   if (btn) btn.style.display = show ? '' : 'none';
   if (rp) rp.style.display = show ? '' : 'none';
+  if (cardAdm) cardAdm.style.display = show ? '' : 'none';
   updateSellerRoutesMenu();
 }
 
@@ -2253,7 +2259,7 @@ function goBackFromMyRoutes() {
     showMyRoutesList();
     return;
   }
-  goScr(prevScr || 'ana');
+  goScr('map');
 }
 
 async function loadMyRoutesList() {
