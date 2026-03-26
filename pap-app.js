@@ -1213,7 +1213,7 @@ function initPullToRefresh(scrollEl, onRefreshAsync) {
   const ind = document.createElement('div');
   ind.className = 'ptr-hint';
   ind.setAttribute('aria-hidden', 'true');
-  ind.textContent = '↓ Puxe e solte para atualizar (ou use ⟳)';
+  ind.textContent = '↓ Puxe e solte para atualizar';
   scrollEl.insertBefore(ind, scrollEl.firstChild);
 
   function beginPull(clientY) {
@@ -1258,7 +1258,7 @@ function initPullToRefresh(scrollEl, onRefreshAsync) {
         toast('Não foi possível atualizar');
       })
       .finally(function () {
-        ind.textContent = '↓ Puxe e solte para atualizar (ou use ⟳)';
+        ind.textContent = '↓ Puxe e solte para atualizar';
         ind.classList.remove('ptr-visible');
       });
   }
