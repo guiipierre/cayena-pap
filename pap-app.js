@@ -67,13 +67,13 @@ const MOCK_DB_SEED = [
       {
         data: '18/03/2026',
         res: 'nao',
-        rep: 'Rafael Vasconcelos',
+        rep: 'Consultor',
         obs: 'Cliente viajando, retornar semana que vem.',
       },
       {
         data: '10/02/2026',
         res: 'reag',
-        rep: 'Rafael Vasconcelos',
+        rep: 'Consultor',
         obs: 'Reunião com fornecedor. Agendou para 18/03.',
       },
     ],
@@ -102,7 +102,7 @@ const MOCK_DB_SEED = [
       {
         data: '20/03/2026',
         res: 'conv',
-        rep: 'Rafael Vasconcelos',
+        rep: 'Consultor',
         obs: 'Pedido R$890 — frango e linguiça calabresa.',
       },
     ],
@@ -814,6 +814,17 @@ function authUseOffline() {
 
 /** Perfil do usuário logado (role = admin | seller) */
 let currentProfile = { role: 'seller' };
+
+/** Nome do vendedor na visita: `profiles.full_name` ou parte local do e-mail. */
+function sellerRepDisplayName(user) {
+  const fromProfile = currentProfile && String(currentProfile.full_name || '').trim();
+  if (fromProfile) return fromProfile;
+  if (user && user.email) {
+    const local = user.email.split('@')[0];
+    if (local) return local;
+  }
+  return 'Consultor';
+}
 
 async function loadMyProfile() {
   const sb = await ensureSupabase();
@@ -2103,10 +2114,18 @@ async function subVis() {
     const d = new Date();
     const dataStr = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
 
+    const sb = await ensureSupabase();
+    let user = null;
+    if (sb) {
+      const { data: u } = await sb.auth.getUser();
+      user = u.user;
+    }
+    const repName = sellerRepDisplayName(user);
+
     const visitPayload = {
       data: dataStr,
       res: currRes,
-      rep: 'Rafael Vasconcelos',
+      rep: repName,
       obs,
       celComprador: document.getElementById('v-cel').value.trim(),
       nomeComprador: nome,
@@ -2114,13 +2133,6 @@ async function subVis() {
       tipoEstabChip: currChip || '',
       created_at_ts: Date.now(),
     };
-
-    const sb = await ensureSupabase();
-    let user = null;
-    if (sb) {
-      const { data: u } = await sb.auth.getUser();
-      user = u.user;
-    }
 
     if (sb && user && !sessionStorage.getItem('cayena_offline')) {
       const isoDate =
