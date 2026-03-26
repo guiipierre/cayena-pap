@@ -977,6 +977,9 @@ let cadStep = 1;
 let currSeg = 'peq';
 let currChip = null;
 
+/** Evita duplo envio (duplo toque) em cadastro / lembrete / visita. */
+const submitBusy = { cad: false, lem: false, vis: false };
+
 function getCliById(id) {
   return DB.find((c) => String(c.id) === String(id));
 }
@@ -1434,6 +1437,7 @@ function pickLemCli(id) {
 }
 
 async function subLembrete() {
+  if (submitBusy.lem) return;
   if (lemPickId === null) {
     toast('⚠️ Selecione um cliente');
     return;
@@ -1448,29 +1452,46 @@ async function subLembrete() {
   if (!c) return;
   const obs = (document.getElementById('lem-obs').value || '').trim();
 
-  const sb = await ensureSupabase();
-  let user = null;
-  if (sb) {
-    const { data: u } = await sb.auth.getUser();
-    user = u.user;
+  submitBusy.lem = true;
+  const lemBtn = document.getElementById('lem-submit');
+  const lemLabel = lemBtn ? lemBtn.textContent : '';
+  if (lemBtn) {
+    lemBtn.disabled = true;
+    lemBtn.setAttribute('aria-busy', 'true');
+    lemBtn.textContent = 'Salvando…';
   }
-  if (sb && user && !sessionStorage.getItem('cayena_offline')) {
-    const remindAt = new Date(d + 'T' + t + ':00');
-    const { error } = await sb.from('reminders').insert({
-      user_id: user.id,
-      establishment_id: c.id,
-      remind_at: remindAt.toISOString(),
-      notes: obs || null,
-      status: 'pending',
-    });
-    if (error) {
-      toast('Erro ao salvar lembrete: ' + error.message);
-      return;
+  try {
+    const sb = await ensureSupabase();
+    let user = null;
+    if (sb) {
+      const { data: u } = await sb.auth.getUser();
+      user = u.user;
+    }
+    if (sb && user && !sessionStorage.getItem('cayena_offline')) {
+      const remindAt = new Date(d + 'T' + t + ':00');
+      const { error } = await sb.from('reminders').insert({
+        user_id: user.id,
+        establishment_id: c.id,
+        remind_at: remindAt.toISOString(),
+        notes: obs || null,
+        status: 'pending',
+      });
+      if (error) {
+        toast('Erro ao salvar lembrete: ' + error.message);
+        return;
+      }
+    }
+
+    toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
+    closeOv('ov-lem');
+  } finally {
+    submitBusy.lem = false;
+    if (lemBtn) {
+      lemBtn.disabled = false;
+      lemBtn.removeAttribute('aria-busy');
+      lemBtn.textContent = lemLabel || 'Salvar lembrete';
     }
   }
-
-  toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
-  closeOv('ov-lem');
 }
 
 function resetCad() {
@@ -1576,6 +1597,16 @@ function valCad(s) {
 }
 
 async function subCad() {
+  if (submitBusy.cad) return;
+  submitBusy.cad = true;
+  const cadBtn = document.getElementById('cadnext');
+  const prevCadLabel = cadBtn ? cadBtn.textContent : '';
+  if (cadBtn) {
+    cadBtn.disabled = true;
+    cadBtn.setAttribute('aria-busy', 'true');
+    cadBtn.textContent = 'Salvando…';
+  }
+  try {
   const nome = document.getElementById('c-nome').value.trim();
   const cnpj = document.getElementById('c-cnpj').value;
   const tel = document.getElementById('c-tel').value;
@@ -1688,6 +1719,14 @@ async function subCad() {
   document.getElementById('cadsuc').classList.add('on');
   toast('✓ Cliente cadastrado!', true);
   setTimeout(closeCad, 3000);
+  } finally {
+    submitBusy.cad = false;
+    if (cadBtn) {
+      cadBtn.disabled = false;
+      cadBtn.removeAttribute('aria-busy');
+      cadBtn.textContent = cadStep === 3 ? 'Cadastrar cliente' : prevCadLabel;
+    }
+  }
 }
 
 function captureGPS() {
@@ -1788,6 +1827,7 @@ function visitResultFromCards() {
 }
 
 async function subVis() {
+  if (submitBusy.vis) return;
   if (!currCli) return;
 
   const celRaw = document.getElementById('v-cel')?.value.replace(/\D/g, '') || '';
@@ -1819,61 +1859,78 @@ async function subVis() {
     return;
   }
 
-  const obs = document.getElementById('v-obs').value.trim();
-  const d = new Date();
-  const dataStr = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
-
-  const visitPayload = {
-    data: dataStr,
-    res: currRes,
-    rep: 'Rafael Vasconcelos',
-    obs,
-    celComprador: document.getElementById('v-cel').value.trim(),
-    nomeComprador: nome,
-    tamEstab: currSeg === 'peq' ? 'Pequeno' : 'Grande',
-    tipoEstabChip: currChip || '',
-  };
-
-  const sb = await ensureSupabase();
-  let user = null;
-  if (sb) {
-    const { data: u } = await sb.auth.getUser();
-    user = u.user;
+  submitBusy.vis = true;
+  const visBtn = document.getElementById('vis-submit');
+  const visLabel = visBtn ? visBtn.textContent : '';
+  if (visBtn) {
+    visBtn.disabled = true;
+    visBtn.setAttribute('aria-busy', 'true');
+    visBtn.textContent = 'Salvando…';
   }
+  try {
+    const obs = document.getElementById('v-obs').value.trim();
+    const d = new Date();
+    const dataStr = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
 
-  if (sb && user && !sessionStorage.getItem('cayena_offline')) {
-    const isoDate =
-      d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    const row = {
-      establishment_id: currCli.id,
-      user_id: user.id,
-      visit_date: isoDate,
-      result: currRes,
-      rep_name: visitPayload.rep,
+    const visitPayload = {
+      data: dataStr,
+      res: currRes,
+      rep: 'Rafael Vasconcelos',
       obs,
-      cel_comprador: visitPayload.celComprador,
-      nome_comprador: nome,
-      tam_estab: visitPayload.tamEstab,
-      tipo_estab_chip: visitPayload.tipoEstabChip,
+      celComprador: document.getElementById('v-cel').value.trim(),
+      nomeComprador: nome,
+      tamEstab: currSeg === 'peq' ? 'Pequeno' : 'Grande',
+      tipoEstabChip: currChip || '',
     };
-    const { error } = await sb.from('visits').insert(row);
-    if (error) {
-      toast('Erro ao salvar visita: ' + error.message);
-      return;
-    }
-    await loadClientsFromSupabase();
-    currCli = getCliById(currCli.id) || currCli;
-  } else {
-    currCli.visitas.unshift(visitPayload);
-  }
 
-  buildHist(currCli);
-  swTab('hist');
-  document.getElementById('vissuc').classList.add('on');
-  document.getElementById('vformbody').style.display = 'none';
-  document.getElementById('visfoo').style.display = 'none';
-  toast('✓ Visita registrada!', true);
-  setTimeout(() => closeOv('ov-vis'), 2500);
+    const sb = await ensureSupabase();
+    let user = null;
+    if (sb) {
+      const { data: u } = await sb.auth.getUser();
+      user = u.user;
+    }
+
+    if (sb && user && !sessionStorage.getItem('cayena_offline')) {
+      const isoDate =
+        d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      const row = {
+        establishment_id: currCli.id,
+        user_id: user.id,
+        visit_date: isoDate,
+        result: currRes,
+        rep_name: visitPayload.rep,
+        obs,
+        cel_comprador: visitPayload.celComprador,
+        nome_comprador: nome,
+        tam_estab: visitPayload.tamEstab,
+        tipo_estab_chip: visitPayload.tipoEstabChip,
+      };
+      const { error } = await sb.from('visits').insert(row);
+      if (error) {
+        toast('Erro ao salvar visita: ' + error.message);
+        return;
+      }
+      await loadClientsFromSupabase();
+      currCli = getCliById(currCli.id) || currCli;
+    } else {
+      currCli.visitas.unshift(visitPayload);
+    }
+
+    buildHist(currCli);
+    swTab('hist');
+    document.getElementById('vissuc').classList.add('on');
+    document.getElementById('vformbody').style.display = 'none';
+    document.getElementById('visfoo').style.display = 'none';
+    toast('✓ Visita registrada!', true);
+    setTimeout(() => closeOv('ov-vis'), 2500);
+  } finally {
+    submitBusy.vis = false;
+    if (visBtn) {
+      visBtn.disabled = false;
+      visBtn.removeAttribute('aria-busy');
+      visBtn.textContent = visLabel || 'Registrar Visita';
+    }
+  }
 }
 
 function toast(msg, ok = false) {

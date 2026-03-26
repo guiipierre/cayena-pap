@@ -281,7 +281,7 @@
       </div>
       <div class="fg"><div class="flbl">Observações</div><textarea class="fi" id="lem-obs" placeholder="Ex.: lembrar de levar amostras, follow-up pós-visita..."></textarea></div>
     </div>
-    <div class="sfoo lem-foot"><button type="button" class="btnp" onclick="subLembrete()">Salvar lembrete</button></div>
+    <div class="sfoo lem-foot"><button type="button" class="btnp" id="lem-submit" onclick="subLembrete()">Salvar lembrete</button></div>
   </div>
 </div>
 
@@ -404,13 +404,13 @@
         <textarea class="fi" id="v-obs" placeholder="O que foi discutido, próximos passos, produtos de interesse..."></textarea>
       </div>
     </div>
-    <div class="sfoo" id="visfoo"><button class="btnp" onclick="subVis()">Registrar Visita</button></div>
+    <div class="sfoo" id="visfoo"><button type="button" class="btnp" id="vis-submit" onclick="subVis()">Registrar Visita</button></div>
   </div>
 </div>
 
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=3" defer></script>
+<script src="pap-app.js?v=4" defer></script>
 </body>
 </html>
