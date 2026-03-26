@@ -242,6 +242,7 @@ function showAuthOverlay() {
     o.classList.add('on');
     o.setAttribute('aria-hidden', 'false');
   }
+  document.body.classList.add('auth-screen-open');
   const pass = document.getElementById('auth-pass');
   if (pass) pass.value = '';
   authResetPassToggle();
@@ -257,6 +258,7 @@ function hideAuthOverlay() {
     o.classList.remove('on');
     o.setAttribute('aria-hidden', 'true');
   }
+  document.body.classList.remove('auth-screen-open');
 }
 
 function greetFirstNameFromProfile(fullName) {
@@ -279,20 +281,37 @@ function updateDashboardGreet(user) {
   span.textContent = 'Consultor';
 }
 
+function initialsForHeader(user) {
+  if (!user || !user.email) {
+    if (sessionStorage.getItem('cayena_offline') === '1') return 'C';
+    return '?';
+  }
+  const fromProfile = currentProfile && greetFirstNameFromProfile(currentProfile.full_name);
+  if (fromProfile) return fromProfile.charAt(0).toUpperCase();
+  return user.email.charAt(0).toUpperCase();
+}
+
 function updateHdrUser(user) {
   const session = document.getElementById('hdr-session');
   const el = document.getElementById('hdr-user');
-  const out = document.getElementById('btn-logout');
   const roleEl = document.getElementById('hdr-role');
+  const avText = document.getElementById('hdr-av-text');
+  const moreLogout = document.getElementById('more-logout');
   const show = !!user;
   if (session) session.style.display = show ? 'flex' : 'none';
   if (el) {
     el.textContent = user && user.email ? user.email.split('@')[0] : '';
   }
-  if (out) out.style.display = show ? 'inline-flex' : 'none';
   if (roleEl) {
     const isAdm = show && currentProfile && currentProfile.role === 'admin';
     roleEl.style.display = isAdm ? 'inline-flex' : 'none';
+  }
+  if (avText) {
+    avText.textContent = initialsForHeader(user);
+  }
+  if (moreLogout) {
+    const canLogout = !!user && isSupabaseConfigured() && sessionStorage.getItem('cayena_offline') !== '1';
+    moreLogout.style.display = canLogout ? '' : 'none';
   }
   updateDashboardGreet(user);
 }
