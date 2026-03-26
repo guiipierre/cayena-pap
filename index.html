@@ -113,10 +113,17 @@
 
     <div class="scr" id="scr-route-plan">
       <div class="route-plan-wrap">
-        <button type="button" class="backbtn" onclick="goScrFromRoutePlan()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <div class="route-plan-form">
-          <div class="hist-title" style="margin-bottom:8px">Rotas por vendedor</div>
-          <p class="route-plan-lead">Escolha o vendedor e toque nos clientes no mapa <strong>na ordem</strong> das visitas. A linha laranja mostra o trajeto. Depois salve.</p>
+        <header class="route-plan-header">
+          <button type="button" class="route-plan-back" onclick="goScrFromRoutePlan()" aria-label="Voltar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="22" height="22" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <div class="route-plan-head-text">
+            <div class="route-plan-kicker">Admin</div>
+            <h1 class="route-plan-title">Rotas por vendedor</h1>
+          </div>
+        </header>
+        <div class="route-plan-scroll">
+          <p class="route-plan-lead">Escolha o vendedor e toque nos pins na <strong>ordem das visitas</strong>. Os selecionados viram círculos numerados no mapa. A linha laranja liga as paradas.</p>
           <div class="fg"><div class="flbl">Vendedor</div>
             <select class="fi" id="route-seller" style="height:52px" onchange="onRouteSellerChange()">
               <option value="">Selecione…</option>
@@ -126,10 +133,14 @@
             <input type="text" class="fi" id="route-name" placeholder="Ex.: Terça — Zona Sul" autocomplete="off">
           </div>
           <div id="route-stops-list" class="route-stops-list"></div>
-          <button type="button" class="btnp" style="width:100%;margin-top:8px" onclick="saveSellerRoutePlan()">Salvar rota</button>
-          <p class="admin-foot" id="route-plan-msg" role="status"></p>
         </div>
-        <div class="fmap route-plan-fmap"><div id="leaflet-route-map" class="leaflet-map" role="application" aria-label="Mapa para planejar rota"></div></div>
+        <div class="route-plan-mapbox">
+          <div class="fmap route-plan-fmap"><div id="leaflet-route-map" class="leaflet-map" role="application" aria-label="Mapa para planejar rota"></div></div>
+        </div>
+        <footer class="route-plan-footer">
+          <button type="button" class="btnp route-plan-save" onclick="saveSellerRoutePlan()">Salvar rota</button>
+          <p class="route-plan-foot-msg" id="route-plan-msg" role="status"></p>
+        </footer>
       </div>
     </div>
 
@@ -444,6 +455,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=14" defer></script>
+<script src="pap-app.js?v=15" defer></script>
 </body>
 </html>

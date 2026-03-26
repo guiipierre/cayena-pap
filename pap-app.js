@@ -1706,10 +1706,28 @@ async function onRouteSellerChange() {
     return;
   }
   routePlanSellerRows = rows || [];
-  placeRoutePlanMarkers();
+  placeRoutePlanMarkers(true);
 }
 
-function placeRoutePlanMarkers() {
+function routePlanStopIndexForEst(estId) {
+  const i = routePlanStops.findIndex(function (s) {
+    return String(s.id) === String(estId);
+  });
+  return i >= 0 ? i + 1 : 0;
+}
+
+function makeRoutePlanNumberedIcon(n) {
+  return L.divIcon({
+    className: 'route-plan-pin-ico',
+    html: '<div class="rpn-num">' + n + '</div>',
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
+    popupAnchor: [0, -15],
+  });
+}
+
+/** @param {boolean} [fitBounds] — true só ao carregar clientes do vendedor (evita zoom ao reordenar) */
+function placeRoutePlanMarkers(fitBounds) {
   if (!routePlanMapInstance || !routePlanMarkersLayer) return;
   routePlanMarkersLayer.clearLayers();
   const pts = [];
@@ -1717,18 +1735,26 @@ function placeRoutePlanMarkers() {
     const lat = parseFloat(est.lat);
     const lng = parseFloat(est.lng);
     if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    const ord = routePlanStopIndexForEst(est.id);
     const isNovo = est.status !== 'reat';
-    const m = L.marker([lat, lng], { icon: makeMapIcon(isNovo) });
+    const icon = ord > 0 ? makeRoutePlanNumberedIcon(ord) : makeMapIcon(isNovo);
+    const m = L.marker([lat, lng], { icon: icon });
     m.on('click', function () {
       addStopToRoutePlan(est);
     });
     m.addTo(routePlanMarkersLayer);
     pts.push([lat, lng]);
   });
-  if (pts.length) {
+  if (pts.length && fitBounds) {
     const b = L.latLngBounds(pts);
     routePlanMapInstance.fitBounds(b.pad(0.12));
   }
+}
+
+function refreshRoutePlanVisuals() {
+  renderRouteStopList();
+  placeRoutePlanMarkers(false);
+  redrawRoutePlanPolylineOnly();
 }
 
 function addStopToRoutePlan(est) {
@@ -1745,8 +1771,7 @@ function addStopToRoutePlan(est) {
     lat: lat,
     lng: lng,
   });
-  renderRouteStopList();
-  redrawRoutePlanPolylineOnly();
+  refreshRoutePlanVisuals();
 }
 
 function renderRouteStopList() {
@@ -1787,14 +1812,12 @@ function moveRouteStopIx(i, d) {
   const t = routePlanStops[i];
   routePlanStops[i] = routePlanStops[j];
   routePlanStops[j] = t;
-  renderRouteStopList();
-  redrawRoutePlanPolylineOnly();
+  refreshRoutePlanVisuals();
 }
 
 function removeRouteStopIx(i) {
   routePlanStops.splice(i, 1);
-  renderRouteStopList();
-  redrawRoutePlanPolylineOnly();
+  refreshRoutePlanVisuals();
 }
 
 function redrawRoutePlanPolylineOnly() {

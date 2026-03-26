@@ -48,16 +48,29 @@ body.auth-screen-open{overflow:hidden!important}
 #scr-cli{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
 /* Mapa: uma coluna de scroll só (mwrap/fmap) */
 #scr-map,#scr-route-plan{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
-.route-plan-wrap{position:relative;width:100%;height:100%;min-height:0;display:flex;flex-direction:column;background:var(--cream)}
-.route-plan-form{padding:12px 16px 10px;flex-shrink:0;max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.route-plan-wrap{width:100%;height:100%;min-height:0;display:flex;flex-direction:column;background:var(--cream);padding-bottom:calc(var(--nav-stack) + 8px);box-sizing:border-box}
+.route-plan-header{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;flex-shrink:0;border-bottom:1px solid var(--zimbro);background:var(--cream)}
+.route-plan-back{width:48px;height:48px;border-radius:14px;background:var(--white);border:1.5px solid var(--gergelim);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:var(--sh);transition:transform .12s,background .12s;touch-action:manipulation}
+.route-plan-back:active{transform:scale(.96);background:var(--zimbro)}
+.route-plan-back svg{color:var(--cravo)}
+.route-plan-head-text{flex:1;min-width:0}
+.route-plan-kicker{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--cardamomo);margin-bottom:2px}
+.route-plan-title{font-size:18px;font-weight:800;color:var(--cravo);line-height:1.2;margin:0}
+.route-plan-scroll{padding:12px 16px 8px;flex-shrink:0;max-height:min(38vh,320px);overflow-y:auto;-webkit-overflow-scrolling:touch}
 .route-plan-lead{font-size:12px;color:var(--cardamomo);line-height:1.45;margin:0 0 12px}
-.route-plan-fmap{flex:1 1 0%;min-height:160px}
-.route-stops-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:120px;overflow-y:auto}
+.route-plan-mapbox{flex:1 1 0%;min-height:0;display:flex;flex-direction:column;position:relative;z-index:1}
+.route-plan-fmap{flex:1 1 0%;min-height:200px;position:relative}
+.route-plan-footer{flex-shrink:0;padding:12px 16px calc(8px + env(safe-area-inset-bottom,0));background:var(--cream);border-top:1px solid var(--zimbro);box-shadow:0 -6px 20px rgba(46,8,29,.06);position:relative;z-index:5}
+.route-plan-save{width:100%;min-height:52px;font-size:15px;font-weight:700}
+.route-plan-foot-msg{font-size:11px;color:var(--cardamomo);margin:8px 0 0;text-align:center;min-height:1em}
+.route-stops-list{display:flex;flex-direction:column;gap:6px;margin-top:4px;max-height:min(28vh,200px);overflow-y:auto}
 .route-stop-row{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--gergelim);border-radius:10px;padding:8px 10px;font-size:13px}
 .route-stop-n{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--orange);color:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .route-stop-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .route-stop-row button{border:none;background:var(--zimbro);color:var(--cravo);width:28px;height:28px;border-radius:8px;font-size:14px;cursor:pointer;touch-action:manipulation}
 .route-stop-row button:active{opacity:.85}
+.leaflet-container .route-plan-pin-ico{background:transparent!important;border:none!important}
+.leaflet-container .rpn-num{width:34px;height:34px;border-radius:50%;background:var(--orange);color:var(--white);font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;border:3px solid var(--white);box-shadow:0 2px 10px rgba(46,8,29,.35);font-family:'Rethink Sans',sans-serif}
 
 /* Barra inferior fixa no viewport — não rola com o conteúdo; FAB central “flutuando” */
 .nav-shell{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,430px);max-width:430px;z-index:100;pointer-events:none;overflow:visible;box-sizing:border-box}
