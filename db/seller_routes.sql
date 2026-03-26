@@ -111,6 +111,10 @@ CREATE POLICY "seller_routes_update_admin" ON public.seller_routes FOR UPDATE US
 DROP POLICY IF EXISTS "seller_routes_delete_admin" ON public.seller_routes;
 CREATE POLICY "seller_routes_delete_admin" ON public.seller_routes FOR DELETE USING (public.is_profile_admin());
 
+-- Vendedor pode excluir apenas as próprias rotas (paradas em cascata)
+DROP POLICY IF EXISTS "seller_routes_delete_owner" ON public.seller_routes;
+CREATE POLICY "seller_routes_delete_owner" ON public.seller_routes FOR DELETE USING (seller_user_id = auth.uid());
+
 -- Paradas
 DROP POLICY IF EXISTS "seller_route_stops_select" ON public.seller_route_stops;
 CREATE POLICY "seller_route_stops_select" ON public.seller_route_stops FOR SELECT USING (

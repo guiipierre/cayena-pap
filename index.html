@@ -111,6 +111,30 @@
       </div>
     </div>
 
+    <div class="scr" id="scr-my-routes">
+      <div class="my-routes-wrap">
+        <div class="my-routes-list-view" id="my-routes-list-view">
+          <div class="dhdr">
+            <div class="backbtn" onclick="goBackFromMyRoutes()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div class="dname">Rotas</div>
+          </div>
+          <p class="my-routes-lead">Rotas planejadas para você. Toque para ver as paradas ou excluir uma rota.</p>
+          <div id="my-routes-list" class="my-routes-list"></div>
+          <p class="my-routes-empty" id="my-routes-empty" style="display:none">Nenhuma rota ainda.</p>
+        </div>
+        <div class="my-routes-detail-view" id="my-routes-detail-view" style="display:none">
+          <div class="dhdr">
+            <div class="backbtn" onclick="showMyRoutesList()" aria-label="Voltar à lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+            <div class="dname" id="my-route-detail-title">Rota</div>
+          </div>
+          <div id="my-route-detail-stops" class="my-route-detail-stops"></div>
+          <div class="my-route-detail-foot">
+            <button type="button" class="btnvis btnvis-danger" onclick="confirmDeleteMyRoute()">Excluir esta rota</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="scr" id="scr-route-plan">
       <div class="route-plan-wrap">
         <header class="route-plan-header">
@@ -172,9 +196,7 @@
           <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
-          <div class="li" id="mleg-route-line" style="display:none"><div class="ld ld-route-line"></div>Rota pelas ruas</div>
-          <div class="li mleg-osrm" id="mleg-osrm" style="display:none">Via OSRM · OpenStreetMap</div>
-          <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
+          <div class="li"><div class="ld ld-user-here" aria-hidden="true"></div>Você está aqui</div>
         </div>
         <div class="mact">
           <div class="mbtn" onclick="mapCenterOnUser()" aria-label="Minha localização"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
@@ -463,6 +485,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=18" defer></script>
+<script src="pap-app.js?v=19" defer></script>
 </body>
 </html>

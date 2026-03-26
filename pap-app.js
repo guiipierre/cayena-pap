@@ -893,6 +893,18 @@ function updateAdminEntry() {
   const show = currentProfile && currentProfile.role === 'admin';
   if (btn) btn.style.display = show ? '' : 'none';
   if (rp) rp.style.display = show ? '' : 'none';
+  updateSellerRoutesMenu();
+}
+
+function updateSellerRoutesMenu() {
+  const el = document.getElementById('more-my-routes');
+  if (!el) return;
+  const show =
+    isSupabaseConfigured() &&
+    sessionStorage.getItem('cayena_offline') !== '1' &&
+    currentProfile &&
+    currentProfile.role !== 'admin';
+  el.style.display = show ? '' : 'none';
 }
 
 function openAdminTab() {
@@ -1136,6 +1148,18 @@ function goScr(s) {
   }
   if (s === 'ana') {
     renderDashboard();
+  }
+  if (s === 'my-routes') {
+    setTimeout(function () {
+      if (myRoutesAfterCliBackRouteId) {
+        const rid = myRoutesAfterCliBackRouteId;
+        myRoutesAfterCliBackRouteId = null;
+        openMyRouteDetail(rid);
+      } else {
+        showMyRoutesList();
+        loadMyRoutesList();
+      }
+    }, 0);
   }
 }
 
@@ -1629,6 +1653,10 @@ let mapSellerRouteStopOrder = {};
 let mapSelectedRouteId = null;
 /** Camadas Leaflet da rota (glow + traço) no mapa do vendedor */
 let mapSellerRouteLayerGroup = null;
+
+/** Tela Minhas rotas (vendedor) */
+let myRoutesDetailRouteId = null;
+let myRoutesAfterCliBackRouteId = null;
 
 /** Planejador admin: mapa secundário e paradas */
 let routePlanMapInstance = null;
@@ -2198,6 +2226,219 @@ function clearMapRouteSelection() {
   refreshMapMarkers({ refitAllClients: true });
 }
 
+function openMyRoutesTab() {
+  if (sessionStorage.getItem('cayena_offline') === '1') {
+    toast('Conecte-se à conta para gerenciar rotas');
+    return;
+  }
+  if (currentProfile && currentProfile.role === 'admin') {
+    return;
+  }
+  myRoutesAfterCliBackRouteId = null;
+  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+  goScr('my-routes');
+}
+
+function showMyRoutesList() {
+  const list = document.getElementById('my-routes-list-view');
+  const detail = document.getElementById('my-routes-detail-view');
+  if (list) list.style.display = '';
+  if (detail) detail.style.display = 'none';
+  myRoutesDetailRouteId = null;
+}
+
+function goBackFromMyRoutes() {
+  const detail = document.getElementById('my-routes-detail-view');
+  if (detail && detail.style.display !== 'none') {
+    showMyRoutesList();
+    return;
+  }
+  goScr(prevScr || 'ana');
+}
+
+async function loadMyRoutesList() {
+  const el = document.getElementById('my-routes-list');
+  const emptyEl = document.getElementById('my-routes-empty');
+  if (!el) return;
+  el.innerHTML = '';
+  const sb = await ensureSupabase();
+  if (!sb) {
+    el.innerHTML = '<p class="my-routes-lead">Nuvem indisponível.</p>';
+    return;
+  }
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) {
+    el.innerHTML = '<p class="my-routes-lead">Faça login para ver suas rotas.</p>';
+    if (emptyEl) emptyEl.style.display = 'none';
+    return;
+  }
+  const { data: rows, error } = await sb
+    .from('seller_routes')
+    .select('id, name, updated_at')
+    .eq('seller_user_id', user.id)
+    .order('updated_at', { ascending: false });
+  if (error) {
+    el.innerHTML = '<p class="my-routes-lead">' + escapeHtml(error.message) + '</p>';
+    if (emptyEl) emptyEl.style.display = 'none';
+    return;
+  }
+  if (!rows || !rows.length) {
+    if (emptyEl) emptyEl.style.display = '';
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  rows.forEach(function (r) {
+    const name = (r.name && String(r.name).trim()) || 'Rota';
+    const d = r.updated_at ? new Date(r.updated_at) : null;
+    const dstr =
+      d && !isNaN(d.getTime())
+        ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        : '';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'my-route-card';
+    const rid = r.id;
+    btn.onclick = function () {
+      openMyRouteDetail(rid);
+    };
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'my-route-card-name';
+    nameSpan.textContent = name;
+    btn.appendChild(nameSpan);
+    if (dstr) {
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'my-route-card-date';
+      dateSpan.textContent = 'Atualizada em ' + dstr;
+      btn.appendChild(dateSpan);
+    }
+    el.appendChild(btn);
+  });
+}
+
+async function openMyRouteDetail(routeId) {
+  myRoutesDetailRouteId = routeId;
+  const list = document.getElementById('my-routes-list-view');
+  const detail = document.getElementById('my-routes-detail-view');
+  const titleEl = document.getElementById('my-route-detail-title');
+  const stopsEl = document.getElementById('my-route-detail-stops');
+  if (list) list.style.display = 'none';
+  if (detail) detail.style.display = '';
+  if (stopsEl) stopsEl.innerHTML = '<p class="my-routes-loading">Carregando…</p>';
+
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const { data: stops, error: stErr } = await sb
+    .from('seller_route_stops')
+    .select('establishment_id, stop_order')
+    .eq('route_id', routeId)
+    .order('stop_order');
+  if (stErr || !stops || !stops.length) {
+    if (stopsEl) stopsEl.innerHTML = '<p class="my-routes-lead">Não foi possível carregar as paradas.</p>';
+    return;
+  }
+  const { data: routeRow } = await sb.from('seller_routes').select('name').eq('id', routeId).maybeSingle();
+  if (titleEl) {
+    titleEl.textContent = (routeRow && routeRow.name && String(routeRow.name).trim()) || 'Rota';
+  }
+
+  const ids = stops.map(function (s) {
+    return s.establishment_id;
+  });
+  const { data: ests } = await sb.from('establishments').select('id, nome, bairro, tel, status').in('id', ids);
+  const byId = {};
+  (ests || []).forEach(function (e) {
+    byId[String(e.id)] = e;
+  });
+
+  if (stopsEl) stopsEl.innerHTML = '';
+  let any = false;
+  stops.forEach(function (st) {
+    const e = byId[String(st.establishment_id)];
+    if (!e) return;
+    any = true;
+    const nome = e.nome || 'Cliente';
+    const bairro = e.bairro || '—';
+    const tel = e.tel || '';
+    const isNovo = e.status !== 'reat';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'my-route-stop-row';
+    const cid = String(e.id);
+    btn.onclick = function () {
+      openCliFromMyRoute(cid);
+    };
+
+    const n = document.createElement('span');
+    n.className = 'my-route-stop-n';
+    n.textContent = String(st.stop_order);
+    btn.appendChild(n);
+
+    const body = document.createElement('div');
+    body.className = 'my-route-stop-body';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'my-route-stop-name-row';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'my-route-stop-name';
+    nameSpan.textContent = nome;
+    nameRow.appendChild(nameSpan);
+    const badge = document.createElement('span');
+    badge.className = isNovo ? 'badge b-novo' : 'badge b-reat';
+    badge.textContent = isNovo ? 'NOVO' : 'REATIVADO';
+    nameRow.appendChild(badge);
+    body.appendChild(nameRow);
+
+    const sub = document.createElement('span');
+    sub.className = 'my-route-stop-sub';
+    sub.textContent = bairro + (tel ? ' · ' + tel : '');
+    body.appendChild(sub);
+
+    btn.appendChild(body);
+    if (stopsEl) stopsEl.appendChild(btn);
+  });
+
+  if (stopsEl && !any) {
+    stopsEl.innerHTML = '<p class="my-routes-lead">Nenhuma parada encontrada.</p>';
+  }
+}
+
+function openCliFromMyRoute(clientId) {
+  if (myRoutesDetailRouteId) {
+    myRoutesAfterCliBackRouteId = myRoutesDetailRouteId;
+  }
+  openCli(clientId);
+}
+
+async function confirmDeleteMyRoute() {
+  if (!myRoutesDetailRouteId) return;
+  if (!confirm('Excluir esta rota permanentemente? Não dá para desfazer.')) return;
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const rid = myRoutesDetailRouteId;
+  const { error } = await sb.from('seller_routes').delete().eq('id', rid);
+  if (error) {
+    toast(error.message);
+    return;
+  }
+  toast('Rota excluída', true);
+  if (String(mapSelectedRouteId) === String(rid)) {
+    mapSelectedRouteId = '';
+    try {
+      localStorage.setItem(MAP_ROUTE_STORAGE_KEY, MAP_ROUTE_STORAGE_NONE);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  if (typeof mapInstance !== 'undefined' && mapInstance) {
+    refreshMapMarkers({});
+  }
+  showMyRoutesList();
+  loadMyRoutesList();
+}
+
 function makeMapIcon(isNovo) {
   const cls = isNovo ? 'novo' : 'reat';
   return L.divIcon({
@@ -2247,15 +2488,6 @@ async function refreshMapMarkers(opts) {
   mapSellerRouteStopOrder = routeCtx.stopOrder || {};
   populateMapRouteSelect(routeCtx.routes, routeCtx.selectedId);
   drawSellerRoutePolylines(routeCtx.latlngs);
-  const legEl = document.getElementById('mleg-route-line');
-  const osrmLeg = document.getElementById('mleg-osrm');
-  if (legEl) {
-    legEl.style.display = routeCtx.latlngs.length >= 2 ? '' : 'none';
-  }
-  if (osrmLeg) {
-    osrmLeg.style.display = routeCtx.latlngs.length >= 2 ? '' : 'none';
-  }
-
   const pts = [];
   DB.forEach(function (c) {
     const lat = parseFloat(c.lat);
