@@ -1622,6 +1622,8 @@ let mapMarkersLayer = null;
 let mapUserMarker = null;
 let mapDidInitialFit = false;
 const MAP_ROUTE_STORAGE_KEY = 'cayena_map_selected_route_id';
+/** Valor em localStorage quando o vendedor escolhe ver o mapa sem rota */
+const MAP_ROUTE_STORAGE_NONE = 'none';
 /** Ordem das paradas na rota exibida (id estabelecimento → número 1..n) */
 let mapSellerRouteStopOrder = {};
 let mapSelectedRouteId = null;
@@ -1892,10 +1894,24 @@ async function saveSellerRoutePlan() {
     toast(sErr.message);
     return;
   }
+
+  const { data: sess } = await sb.auth.getSession();
+  const tok = sess && sess.session && sess.session.access_token;
+  if (tok) {
+    fetch('/api/compute-route-geometry', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + tok,
+      },
+      body: JSON.stringify({ routeId: route.id }),
+    }).catch(function () {});
+  }
+
   toast('Rota salva — o vendedor vê no mapa', true);
   if (msgEl) {
     msgEl.textContent =
-      'No mapa, o vendedor escolhe qual rota ver no seletor e acompanha a ordem numerada nas paradas.';
+      'O traçado pelas ruas é guardado no servidor (uma vez por rota); no mapa o vendedor só carrega essa linha.';
   }
 }
 
@@ -1907,26 +1923,103 @@ function clearSellerRoutePolylines() {
   }
 }
 
-/** Traço em duas camadas: halo suave + linha tracejada definida */
+/** Traço em duas camadas: halo suave + linha principal (sólida se seguir ruas) */
 function drawSellerRoutePolylines(latlngs) {
   if (!mapInstance || latlngs.length < 2) return;
   clearSellerRoutePolylines();
   mapSellerRouteLayerGroup = L.layerGroup().addTo(mapInstance);
+  const dense = latlngs.length > 24;
   L.polyline(latlngs, {
     color: '#FF472F',
-    weight: 12,
-    opacity: 0.22,
+    weight: dense ? 10 : 12,
+    opacity: dense ? 0.18 : 0.22,
     lineCap: 'round',
     lineJoin: 'round',
   }).addTo(mapSellerRouteLayerGroup);
-  L.polyline(latlngs, {
+  const top = {
     color: '#FF472F',
     weight: 3,
     opacity: 0.95,
-    dashArray: '14 10',
     lineCap: 'round',
     lineJoin: 'round',
-  }).addTo(mapSellerRouteLayerGroup);
+  };
+  if (!dense) {
+    top.dashArray = '14 10';
+  }
+  L.polyline(latlngs, top).addTo(mapSellerRouteLayerGroup);
+}
+
+/**
+ * Um trecho entre dois pontos seguindo a rede viária (OSRM via /api/osrm-route).
+ * @param {number[]} a [lat, lng]
+ * @param {number[]} b [lat, lng]
+ * @returns {Promise<number[][]|null>}
+ */
+async function fetchOsrmSegmentLatLngs(a, b) {
+  const coords = a[1] + ',' + a[0] + ';' + b[1] + ',' + b[0];
+  const qs = 'coords=' + encodeURIComponent(coords);
+  const tryUrls = ['/api/osrm-route?' + qs];
+  if (typeof window !== 'undefined' && window.location && window.location.protocol === 'file:') {
+    tryUrls.unshift(
+      'https://router.project-osrm.org/route/v1/driving/' +
+        coords +
+        '?overview=full&geometries=geojson&steps=false'
+    );
+  }
+  for (let u = 0; u < tryUrls.length; u++) {
+    try {
+      const r = await fetch(tryUrls[u]);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j.code !== 'Ok' || !j.routes || !j.routes[0]) continue;
+      const geom = j.routes[0].geometry;
+      if (!geom || geom.type !== 'LineString' || !geom.coordinates || geom.coordinates.length < 2) {
+        continue;
+      }
+      return geom.coordinates.map(function (pt) {
+        return [pt[1], pt[0]];
+      });
+    } catch (e) {
+      /* tenta próxima URL */
+    }
+  }
+  return null;
+}
+
+/** Liga várias paradas por trechos rodoviários; fallback em linha reta por trecho se OSRM falhar */
+async function snapRouteToRoads(waypoints) {
+  if (waypoints.length < 2) return waypoints;
+  const merged = [];
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const a = waypoints[i];
+    const b = waypoints[i + 1];
+    const seg = await fetchOsrmSegmentLatLngs(a, b);
+    if (!seg || seg.length < 2) {
+      if (!merged.length) merged.push(a);
+      merged.push(b);
+      continue;
+    }
+    if (!merged.length) {
+      for (let k = 0; k < seg.length; k++) merged.push(seg[k]);
+    } else {
+      for (let k = 1; k < seg.length; k++) merged.push(seg[k]);
+    }
+  }
+  return merged.length >= 2 ? merged : waypoints;
+}
+
+/** GeoJSON LineString (lng,lat) → array Leaflet [lat,lng] */
+function geoJsonLineStringToLatLngs(geom) {
+  if (!geom || geom.type !== 'LineString' || !Array.isArray(geom.coordinates)) {
+    return null;
+  }
+  const out = [];
+  for (let i = 0; i < geom.coordinates.length; i++) {
+    const pt = geom.coordinates[i];
+    if (!Array.isArray(pt) || pt.length < 2) return null;
+    out.push([parseFloat(pt[1]), parseFloat(pt[0])]);
+  }
+  return out.length >= 2 ? out : null;
 }
 
 async function fetchSellerRouteContextForMap() {
@@ -1947,19 +2040,37 @@ async function fetchSellerRouteContextForMap() {
 
   if (!routes || !routes.length) return empty;
 
-  let selectedId = mapSelectedRouteId;
-  try {
-    const saved = localStorage.getItem(MAP_ROUTE_STORAGE_KEY);
-    if (!selectedId && saved && routes.some(function (r) { return r.id === saved; })) {
-      selectedId = saved;
+  let selectedId = null;
+  if (mapSelectedRouteId === '') {
+    selectedId = null;
+  } else if (mapSelectedRouteId && routes.some(function (r) { return r.id === mapSelectedRouteId; })) {
+    selectedId = mapSelectedRouteId;
+  } else {
+    let fromStorage = null;
+    try {
+      const saved = localStorage.getItem(MAP_ROUTE_STORAGE_KEY);
+      if (saved === MAP_ROUTE_STORAGE_NONE) {
+        fromStorage = MAP_ROUTE_STORAGE_NONE;
+      } else if (saved && routes.some(function (r) { return r.id === saved; })) {
+        fromStorage = saved;
+      }
+    } catch (e) {
+      /* ignore */
     }
-  } catch (e) {
-    /* ignore */
+    if (fromStorage === MAP_ROUTE_STORAGE_NONE) {
+      selectedId = null;
+    } else if (fromStorage) {
+      selectedId = fromStorage;
+    } else {
+      selectedId = routes[0].id;
+    }
   }
-  if (!selectedId || !routes.some(function (r) { return r.id === selectedId; })) {
-    selectedId = routes[0].id;
+
+  mapSelectedRouteId = selectedId == null ? '' : selectedId;
+
+  if (selectedId == null) {
+    return { routes, selectedId: null, latlngs: [], stopOrder: {} };
   }
-  mapSelectedRouteId = selectedId;
 
   const { data: stops } = await sb
     .from('seller_route_stops')
@@ -1981,14 +2092,35 @@ async function fetchSellerRouteContextForMap() {
   });
 
   const stopOrder = {};
-  const latlngs = [];
+  const straight = [];
   stops.forEach(function (st) {
     stopOrder[String(st.establishment_id)] = st.stop_order;
     const e = byId[String(st.establishment_id)];
     if (e && e.lat != null && e.lng != null) {
-      latlngs.push([parseFloat(e.lat), parseFloat(e.lng)]);
+      straight.push([parseFloat(e.lat), parseFloat(e.lng)]);
     }
   });
+
+  if (straight.length < 2) {
+    return { routes, selectedId, latlngs: [], stopOrder };
+  }
+
+  const { data: routeRow } = await sb
+    .from('seller_routes')
+    .select('path_geojson')
+    .eq('id', selectedId)
+    .maybeSingle();
+
+  const fromDb = geoJsonLineStringToLatLngs(routeRow && routeRow.path_geojson);
+  if (fromDb && fromDb.length >= 2) {
+    return { routes, selectedId, latlngs: fromDb, stopOrder };
+  }
+
+  let latlngs = straight;
+  const snapped = await snapRouteToRoads(straight);
+  if (snapped && snapped.length >= 2) {
+    latlngs = snapped;
+  }
 
   return { routes, selectedId, latlngs, stopOrder };
 }
@@ -1996,20 +2128,27 @@ async function fetchSellerRouteContextForMap() {
 function populateMapRouteSelect(routes, selectedId) {
   const row = document.getElementById('map-route-row');
   const sel = document.getElementById('map-route-select');
+  const clearBtn = document.getElementById('map-route-clear');
   if (!row || !sel) return;
   if (currentProfile && currentProfile.role === 'admin') {
     row.style.display = 'none';
     row.setAttribute('aria-hidden', 'true');
+    if (clearBtn) clearBtn.style.display = 'none';
     return;
   }
   if (!routes || !routes.length) {
     row.style.display = 'none';
     row.setAttribute('aria-hidden', 'true');
+    if (clearBtn) clearBtn.style.display = 'none';
     return;
   }
   row.style.display = 'flex';
   row.setAttribute('aria-hidden', 'false');
   sel.innerHTML = '';
+  const optNone = document.createElement('option');
+  optNone.value = '';
+  optNone.textContent = 'Mapa normal (sem rota)';
+  sel.appendChild(optNone);
   routes.forEach(function (r) {
     const opt = document.createElement('option');
     opt.value = r.id;
@@ -2018,24 +2157,45 @@ function populateMapRouteSelect(routes, selectedId) {
   });
   if (selectedId && Array.prototype.some.call(sel.options, function (o) { return o.value === selectedId; })) {
     sel.value = selectedId;
-  } else if (sel.options.length) {
-    sel.value = sel.options[0].value;
+  } else {
+    sel.value = '';
   }
-  mapSelectedRouteId = sel.value || null;
+  mapSelectedRouteId = sel.value === '' ? '' : sel.value;
+  if (clearBtn) {
+    clearBtn.style.display = mapSelectedRouteId ? '' : 'none';
+  }
 }
 
 function onMapRouteSelectChange() {
   const sel = document.getElementById('map-route-select');
   if (!sel) return;
-  mapSelectedRouteId = sel.value || null;
+  mapSelectedRouteId = sel.value === '' ? '' : sel.value;
   try {
     if (mapSelectedRouteId) {
       localStorage.setItem(MAP_ROUTE_STORAGE_KEY, mapSelectedRouteId);
+    } else {
+      localStorage.setItem(MAP_ROUTE_STORAGE_KEY, MAP_ROUTE_STORAGE_NONE);
     }
   } catch (e) {
     /* ignore */
   }
-  refreshMapMarkers({ fitSelectedRoute: true });
+  if (mapSelectedRouteId) {
+    refreshMapMarkers({ fitSelectedRoute: true });
+  } else {
+    refreshMapMarkers({ refitAllClients: true });
+  }
+}
+
+function clearMapRouteSelection() {
+  const sel = document.getElementById('map-route-select');
+  if (sel) sel.value = '';
+  mapSelectedRouteId = '';
+  try {
+    localStorage.setItem(MAP_ROUTE_STORAGE_KEY, MAP_ROUTE_STORAGE_NONE);
+  } catch (e) {
+    /* ignore */
+  }
+  refreshMapMarkers({ refitAllClients: true });
 }
 
 function makeMapIcon(isNovo) {
@@ -2088,8 +2248,12 @@ async function refreshMapMarkers(opts) {
   populateMapRouteSelect(routeCtx.routes, routeCtx.selectedId);
   drawSellerRoutePolylines(routeCtx.latlngs);
   const legEl = document.getElementById('mleg-route-line');
+  const osrmLeg = document.getElementById('mleg-osrm');
   if (legEl) {
     legEl.style.display = routeCtx.latlngs.length >= 2 ? '' : 'none';
+  }
+  if (osrmLeg) {
+    osrmLeg.style.display = routeCtx.latlngs.length >= 2 ? '' : 'none';
   }
 
   const pts = [];
@@ -2122,6 +2286,11 @@ async function refreshMapMarkers(opts) {
 
   if (opts.fitSelectedRoute && routeCtx.latlngs.length >= 2) {
     mapInstance.fitBounds(L.latLngBounds(routeCtx.latlngs).pad(0.14));
+    return;
+  }
+
+  if (opts.refitAllClients && pts.length) {
+    mapInstance.fitBounds(L.latLngBounds(pts).pad(0.14));
     return;
   }
 

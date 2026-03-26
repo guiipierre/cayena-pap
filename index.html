@@ -165,13 +165,15 @@
           <div class="map-route-row" id="map-route-row" style="display:none" aria-hidden="true">
             <label class="map-route-lbl" for="map-route-select">Rota</label>
             <select id="map-route-select" class="map-route-select" aria-label="Escolher rota planejada" onchange="onMapRouteSelectChange()"></select>
+            <button type="button" class="map-route-clear" id="map-route-clear" style="display:none" aria-label="Ver mapa sem rota" onclick="clearMapRouteSelection()">✕</button>
           </div>
         </div>
         <div class="fmap">
           <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
-          <div class="li" id="mleg-route-line" style="display:none"><div class="ld ld-route-line"></div>Rota planejada</div>
+          <div class="li" id="mleg-route-line" style="display:none"><div class="ld ld-route-line"></div>Rota pelas ruas</div>
+          <div class="li mleg-osrm" id="mleg-osrm" style="display:none">Via OSRM · OpenStreetMap</div>
           <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
         </div>
         <div class="mact">
@@ -461,6 +463,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=16" defer></script>
+<script src="pap-app.js?v=18" defer></script>
 </body>
 </html>

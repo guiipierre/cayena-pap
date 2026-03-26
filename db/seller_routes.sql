@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.seller_routes (
   seller_user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   name TEXT NOT NULL DEFAULT 'Rota',
   notes TEXT,
-  -- Opcional (fase 2): GeoJSON LineString se o admin desenhar trilha livre no mapa; se null, o app liga os pins em ordem com linha reta.
+  -- GeoJSON LineString (lng,lat) — preenchido pelo servidor ao salvar a rota (OSRM); vendedor só lê. Se null, app calcula na hora (fallback).
   path_geojson jsonb,
   created_by UUID REFERENCES auth.users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
