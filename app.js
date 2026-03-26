@@ -1,6 +1,7 @@
 const now = new Date();
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const DIAS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const pad = (n) => String(n).padStart(2, '0');
 
 document.getElementById('gdate').textContent =
@@ -9,6 +10,7 @@ document.getElementById('gdate').textContent =
 const MOCK_DB_SEED = [
   {
     id: 0,
+    created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
     nome: 'Pizzaria do Zé',
     tipo: 'Restaurante',
     status: 'novo',
@@ -29,6 +31,7 @@ const MOCK_DB_SEED = [
   },
   {
     id: 1,
+    created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     nome: 'Açougue Central',
     tipo: 'Açougue',
     status: 'reat',
@@ -62,6 +65,7 @@ const MOCK_DB_SEED = [
   },
   {
     id: 2,
+    created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     nome: 'Bar do Carlinhos',
     tipo: 'Bar / Boteco',
     status: 'reat',
@@ -89,6 +93,7 @@ const MOCK_DB_SEED = [
   },
   {
     id: 3,
+    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     nome: 'Restaurante Vegano SP',
     tipo: 'Restaurante',
     status: 'novo',
@@ -208,7 +213,229 @@ function mapClientRow(row) {
     lng: row.lng != null ? String(row.lng) : '',
     obs: row.obs || '',
     visitas: visitas,
+    created_at: row.created_at || null,
   };
+}
+
+function clientCreatedDate(c) {
+  if (!c || !c.created_at) return null;
+  const d = new Date(c.created_at);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function startOfDay(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function startOfWeekMonday(d) {
+  const x = startOfDay(d);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function countCreatedInRange(clients, start, end) {
+  return clients.filter(function (c) {
+    const dt = clientCreatedDate(c);
+    if (!dt) return false;
+    return dt >= start && dt <= end;
+  }).length;
+}
+
+function countCreatedOnCalendarDay(clients, day) {
+  const d0 = startOfDay(day);
+  const d1 = new Date(d0);
+  d1.setDate(d1.getDate() + 1);
+  return clients.filter(function (c) {
+    const dt = clientCreatedDate(c);
+    if (!dt) return false;
+    return dt >= d0 && dt < d1;
+  }).length;
+}
+
+function relativeTimePt(d) {
+  const diff = Date.now() - d.getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'agora há pouco';
+  if (m < 60) return 'há ' + m + ' min';
+  const h = Math.floor(m / 60);
+  if (h < 24) return 'há ' + h + ' h';
+  const days = Math.floor(h / 24);
+  if (days === 1) return 'ontem';
+  return pad(d.getDate()) + '/' + pad(d.getMonth() + 1);
+}
+
+function tipoEmoji(tipo) {
+  const t = String(tipo || '').toLowerCase();
+  if (t.includes('pizza') || t.includes('restaur')) return '🍕';
+  if (t.includes('açou') || t.includes('acou')) return '🥩';
+  if (t.includes('bar') || t.includes('boteco')) return '🍺';
+  if (t.includes('vegan') || t.includes('salad')) return '🥗';
+  if (t.includes('padar')) return '🥖';
+  if (t.includes('merc')) return '🛒';
+  return '🏪';
+}
+
+function deltaVersusSemana(curr, prev) {
+  if (prev === 0 && curr === 0) return '—';
+  if (prev === 0) return curr > 0 ? '↑ ' + curr + ' vs 0 na sem. anterior' : '—';
+  const d = curr - prev;
+  if (d > 0) return '↑ ' + d + ' vs sem. anterior';
+  if (d < 0) return '↓ ' + Math.abs(d) + ' vs sem. anterior';
+  return 'Igual à sem. anterior';
+}
+
+function pctVsMesAnterior(curr, prev) {
+  if (prev === 0 && curr === 0) return '—';
+  if (prev === 0) return curr > 0 ? '↑ 100% vs mês anterior' : '—';
+  const pct = Math.round(((curr - prev) / prev) * 100);
+  if (pct > 0) return '↑ ' + pct + '% vs mês anterior';
+  if (pct < 0) return '↓ ' + Math.abs(pct) + '% vs mês anterior';
+  return '0% vs mês anterior';
+}
+
+function renderDashboard() {
+  const list = DB || [];
+  const now = new Date();
+  const y = now.getFullYear();
+  const mo = now.getMonth();
+
+  const startThisMonth = new Date(y, mo, 1);
+  const startNextMonth = new Date(y, mo + 1, 1);
+  const startPrevMonth = new Date(y, mo - 1, 1);
+  const endPrevMonth = new Date(startThisMonth.getTime() - 1);
+
+  const mesAtual = countCreatedInRange(list, startThisMonth, endOfDay(now));
+  const mesAnterior = countCreatedInRange(list, startPrevMonth, endPrevMonth);
+
+  const wkStart = startOfWeekMonday(now);
+  const wkPrevEnd = new Date(wkStart.getTime() - 1);
+  const wkPrevStart = new Date(wkStart);
+  wkPrevStart.setDate(wkPrevStart.getDate() - 7);
+  const semAtual = countCreatedInRange(list, wkStart, endOfDay(now));
+  const semAnterior = countCreatedInRange(list, wkPrevStart, wkPrevEnd);
+
+  const todayStart = startOfDay(now);
+  const yesterday = new Date(todayStart);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const hoje = countCreatedOnCalendarDay(list, now);
+  const ontem = countCreatedOnCalendarDay(list, yesterday);
+
+  const elMes = document.getElementById('dash-k-mes');
+  const elMesDelta = document.getElementById('dash-k-mes-delta');
+  const elSem = document.getElementById('dash-k-sem');
+  const elSemDelta = document.getElementById('dash-k-sem-delta');
+  const elHoje = document.getElementById('khoje');
+  const elHojeSub = document.getElementById('dash-k-hoje-sub');
+  if (elMes) elMes.textContent = String(mesAtual);
+  if (elMesDelta) {
+    elMesDelta.textContent = pctVsMesAnterior(mesAtual, mesAnterior);
+    elMesDelta.className = 'kt ' + (mesAtual >= mesAnterior ? 'kt-up' : 'kt-warn');
+  }
+  if (elSem) elSem.textContent = String(semAtual);
+  if (elSemDelta) {
+    elSemDelta.textContent = deltaVersusSemana(semAtual, semAnterior);
+    elSemDelta.className = 'kt ' + (semAtual >= semAnterior ? 'kt-up' : 'kt-warn');
+  }
+  if (elHoje) elHoje.textContent = String(hoje);
+  if (elHojeSub) {
+    if (ontem === 0 && hoje === 0) elHojeSub.textContent = '—';
+    else if (ontem === 0) elHojeSub.textContent = hoje > 0 ? '1º cadastro hoje' : '—';
+    else {
+      const d = hoje - ontem;
+      if (d > 0) elHojeSub.textContent = '↑ ' + d + ' vs ontem';
+      else if (d < 0) elHojeSub.textContent = '↓ ' + Math.abs(d) + ' vs ontem';
+      else elHojeSub.textContent = 'Igual a ontem';
+    }
+    elHojeSub.className = 'kt ' + (hoje >= ontem ? 'kt-up' : 'kt-warn');
+  }
+
+  const chartEl = document.getElementById('dash-chart-rows');
+  if (chartEl) {
+    const days = [];
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(12, 0, 0, 0);
+      days.push({ d: d, cnt: countCreatedOnCalendarDay(list, d) });
+    }
+    const maxv = Math.max(1, ...days.map(function (x) { return x.cnt; }));
+    chartEl.innerHTML = days
+      .map(function (x) {
+        const dayIdx = x.d.getDay();
+        const label = DIAS_SHORT[dayIdx];
+        const pct = Math.round((x.cnt / maxv) * 100);
+        const dim = x.cnt === 0 ? ' dim' : '';
+        return (
+          '<div class="br"><span class="bday">' +
+          label +
+          '</span><div class="btrack"><div class="bfill' +
+          dim +
+          '" style="width:' +
+          pct +
+          '%"></div></div><span class="bnum">' +
+          x.cnt +
+          '</span></div>'
+        );
+      })
+      .join('');
+  }
+
+  const recentEl = document.getElementById('dash-recent-list');
+  if (recentEl) {
+    const sorted = list
+      .slice()
+      .sort(function (a, b) {
+        const da = clientCreatedDate(a);
+        const db = clientCreatedDate(b);
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return db - da;
+      })
+      .slice(0, 8);
+    if (!sorted.length) {
+      recentEl.innerHTML =
+        '<div class="empty" style="padding:20px">Nenhum cadastro ainda. Toque no + para incluir um cliente.</div>';
+    } else {
+      recentEl.innerHTML = sorted
+        .map(function (c) {
+          const dt = clientCreatedDate(c);
+          const when = dt ? relativeTimePt(dt) : '—';
+          const badge = c.status === 'reat' ? 'REATIVADO' : 'NOVO';
+          const bcls = c.status === 'reat' ? 'b-reat' : 'b-novo';
+          const bairro = c.bairro || '—';
+          const idEsc = String(c.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return (
+            '<div class="arow" onclick="openCli(\'' +
+            idEsc +
+            '\')"><div class="aico">' +
+            tipoEmoji(c.tipo) +
+            '</div><div class="ainf"><div class="an">' +
+            escapeHtml(c.nome) +
+            '</div><div class="as">' +
+            escapeHtml(bairro) +
+            ' · ' +
+            when +
+            '</div></div><span class="badge ' +
+            bcls +
+            '">' +
+            badge +
+            '</span></div>'
+          );
+        })
+        .join('');
+    }
+  }
 }
 
 async function loadClientsFromSupabase() {
@@ -226,6 +453,7 @@ async function loadClientsFromSupabase() {
     return;
   }
   DB = (data || []).map(mapClientRow);
+  renderDashboard();
   if (typeof refreshMapMarkers === 'function') {
     refreshMapMarkers({ doInitialFit: true });
   }
@@ -406,6 +634,7 @@ async function authSignIn() {
 function authUseOffline() {
   sessionStorage.setItem('cayena_offline', '1');
   DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+  renderDashboard();
   hideAuthOverlay();
   updateHdrUser(null);
   currentProfile = { role: 'seller' };
@@ -516,6 +745,7 @@ async function bootstrapAuth() {
   updateAuthSkipVisibility();
   if (!isSupabaseConfigured()) {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    renderDashboard();
     hideAuthOverlay();
     updateHdrUser(null);
     return;
@@ -526,12 +756,14 @@ async function bootstrapAuth() {
     console.warn(e);
     toast('Não foi possível carregar o Supabase. Modo offline.');
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    renderDashboard();
     hideAuthOverlay();
     updateHdrUser(null);
     return;
   }
   if (!supabaseClient) {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    renderDashboard();
     hideAuthOverlay();
     updateHdrUser(null);
     return;
@@ -544,6 +776,7 @@ async function bootstrapAuth() {
     hideAuthOverlay();
   } else if (sessionStorage.getItem('cayena_offline') === '1') {
     DB = JSON.parse(JSON.stringify(MOCK_DB_SEED));
+    renderDashboard();
     hideAuthOverlay();
   } else {
     updateHdrUser(null);
@@ -556,6 +789,7 @@ async function bootstrapAuth() {
       });
     } else if (!sessionStorage.getItem('cayena_offline')) {
       DB = [];
+      renderDashboard();
       currentProfile = { role: 'seller' };
       updateHdrUser(null);
       updateAdminEntry();
@@ -601,6 +835,9 @@ function goScr(s) {
     setTimeout(function () {
       initLeafletMap();
     }, 150);
+  }
+  if (s === 'ana') {
+    renderDashboard();
   }
 }
 
@@ -1250,10 +1487,12 @@ async function subCad() {
       lng,
       obs,
       visitas: [],
+      created_at: new Date().toISOString(),
     });
   }
 
   refreshMapMarkers({ focusClientId: newId });
+  renderDashboard();
 
   document.getElementById('succnpj').textContent = cnpj;
   document.getElementById('cadfb').style.display = 'none';
@@ -1262,8 +1501,6 @@ async function subCad() {
   document.getElementById('cadslbl').style.display = 'none';
   document.getElementById('cadtit').textContent = 'Sucesso! 🎉';
   document.getElementById('cadsuc').classList.add('on');
-  const k = document.getElementById('khoje');
-  if (k) k.textContent = parseInt(k.textContent, 10) + 1;
   toast('✓ Cliente cadastrado!', true);
   setTimeout(closeCad, 3000);
 }

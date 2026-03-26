@@ -91,23 +91,16 @@
         <div class="a-date" id="gdate"></div>
         <div class="a-name">Olá, <span id="dash-greet-name">Consultor</span> 👋</div>
         <div class="kgrid">
-          <div class="kc big"><div class="kl">Cadastros este mês</div><div class="kv">143</div><div class="kt kt-up">↑ 18% vs mês anterior</div></div>
-          <div class="kc"><div class="kl">Esta semana</div><div class="kv" style="font-size:26px">34</div><div class="kt kt-up">↑ 6</div></div>
-          <div class="kc"><div class="kl">Hoje</div><div class="kv" id="khoje" style="font-size:26px">7</div><div class="kt kt-warn">Meta: 10</div></div>
+          <div class="kc big"><div class="kl">Cadastros este mês</div><div class="kv" id="dash-k-mes">0</div><div class="kt kt-up" id="dash-k-mes-delta">—</div></div>
+          <div class="kc"><div class="kl">Esta semana</div><div class="kv" id="dash-k-sem" style="font-size:26px">0</div><div class="kt kt-warn" id="dash-k-sem-delta">—</div></div>
+          <div class="kc"><div class="kl">Hoje</div><div class="kv" id="khoje" style="font-size:26px">0</div><div class="kt kt-warn" id="dash-k-hoje-sub">—</div></div>
         </div>
         <div class="chart-card">
-          <div class="chart-hdr">Cadastros — últimos 5 dias <a>Ver tudo →</a></div>
-          <div class="br"><span class="bday">Seg</span><div class="btrack"><div class="bfill" style="width:80%"></div></div><span class="bnum">8</span></div>
-          <div class="br"><span class="bday">Ter</span><div class="btrack"><div class="bfill" style="width:60%"></div></div><span class="bnum">6</span></div>
-          <div class="br"><span class="bday">Qua</span><div class="btrack"><div class="bfill" style="width:100%"></div></div><span class="bnum">10</span></div>
-          <div class="br"><span class="bday">Qui</span><div class="btrack"><div class="bfill dim" style="width:30%"></div></div><span class="bnum">3</span></div>
-          <div class="br"><span class="bday">Sex</span><div class="btrack"><div class="bfill" style="width:70%"></div></div><span class="bnum">7</span></div>
+          <div class="chart-hdr">Cadastros — últimos 5 dias</div>
+          <div id="dash-chart-rows"></div>
         </div>
-        <div class="recent-hdr">Últimos cadastros <a>Ver todos →</a></div>
-        <div class="arow" onclick="openCli(0)"><div class="aico">🍕</div><div class="ainf"><div class="an">Pizzaria do Zé</div><div class="as">Vila Madalena · há 23 min</div></div><span class="badge b-novo">NOVO</span></div>
-        <div class="arow" onclick="openCli(1)"><div class="aico">🥩</div><div class="ainf"><div class="an">Açougue Central</div><div class="as">Pinheiros · há 1h</div></div><span class="badge b-reat">REATIVADO</span></div>
-        <div class="arow" onclick="openCli(2)"><div class="aico">🍺</div><div class="ainf"><div class="an">Bar do Carlinhos</div><div class="as">Consolação · há 2h</div></div><span class="badge b-reat">REATIVADO</span></div>
-        <div class="arow" onclick="openCli(3)"><div class="aico">🥗</div><div class="ainf"><div class="an">Restaurante Vegano SP</div><div class="as">Jardins · há 3h</div></div><span class="badge b-novo">NOVO</span></div>
+        <div class="recent-hdr">Últimos cadastros <a href="javascript:void(0)" onclick="openClisTab()" style="cursor:pointer">Ver todos →</a></div>
+        <div id="dash-recent-list"></div>
       </div>
     </div>
 
