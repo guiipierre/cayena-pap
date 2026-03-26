@@ -106,9 +106,13 @@
 
     <div class="scr" id="scr-hist">
       <div class="hist-wrap">
-        <div class="hist-title">História</div>
+        <div class="hist-title-row">
+          <div class="hist-title">História</div>
+          <button type="button" class="hist-refresh-btn" id="btn-hist-refresh" onclick="refreshHistoriaFromServer()" aria-label="Atualizar lista">⟳</button>
+        </div>
         <div class="chart-card" style="margin-bottom:16px">
           <div class="chart-hdr">Visitas recentes (todos os clientes)</div>
+          <p class="hist-scroll-hint">Ao abrir esta tela, a lista sincroniza. Com muitos itens, ao rolar até o fim também atualiza. Lista curta: use ⟳.</p>
         </div>
         <div id="hist-global"></div>
       </div>
@@ -135,8 +139,6 @@
           <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
-          <div class="li"><div class="ld" style="background:var(--orange)"></div>Novo cadastro</div>
-          <div class="li"><div class="ld" style="background:var(--dark)"></div>Reativado (visitar)</div>
           <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
         </div>
         <div class="mact">
@@ -424,6 +426,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=6" defer></script>
+<script src="pap-app.js?v=11" defer></script>
 </body>
 </html>

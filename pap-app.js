@@ -571,13 +571,14 @@ async function mergeEstablishmentIntoDb(sb, establishmentId) {
   refreshOpenClientPickers();
 }
 
+/** @returns {Promise<boolean>} true se a lista foi carregada com sucesso */
 async function loadClientsFromSupabase(opts) {
   const silent = opts && opts.silent;
   const sb = await ensureSupabase();
-  if (!sb) return;
+  if (!sb) return false;
   const { data: authData } = await sb.auth.getUser();
   const user = authData && authData.user;
-  if (!user) return;
+  if (!user) return false;
 
   const { data: assigns, error: errAssign } = await sb
     .from('establishment_assignments')
@@ -586,7 +587,7 @@ async function loadClientsFromSupabase(opts) {
   if (errAssign) {
     notifySupabaseListLoadError(errAssign.message, silent);
     await loadMyProfile();
-    return;
+    return false;
   }
   const ids = (assigns || []).map(function (a) {
     return a.establishment_id;
@@ -603,7 +604,7 @@ async function loadClientsFromSupabase(opts) {
     }
     refreshOpenClientPickers();
     await loadMyProfile();
-    return;
+    return true;
   }
 
   let q = sb
@@ -617,7 +618,7 @@ async function loadClientsFromSupabase(opts) {
   if (error) {
     notifySupabaseListLoadError(error.message, silent);
     await loadMyProfile();
-    return;
+    return false;
   }
   DB = (data || []).map(mapClientRow);
   renderDashboard();
@@ -630,6 +631,7 @@ async function loadClientsFromSupabase(opts) {
   }
   refreshOpenClientPickers();
   await loadMyProfile();
+  return true;
 }
 
 function showAuthOverlay() {
@@ -1063,14 +1065,7 @@ function goBack() {
   goScr(prevScr);
 }
 
-function openCli(idx) {
-  const c = getCliById(idx);
-  if (!c) {
-    toast('Cliente não encontrado');
-    return;
-  }
-  currCli = c;
-  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+function applyClientDetailToDom(c) {
   document.getElementById('dname').textContent = c.nome;
   const b = document.getElementById('dbadge');
   if (c.status === 'reat') {
@@ -1121,8 +1116,212 @@ function openCli(idx) {
         '</span></div>'
       : '');
   buildHist(c);
+}
+
+function openCli(idx) {
+  const c = getCliById(idx);
+  if (!c) {
+    toast('Cliente não encontrado');
+    return;
+  }
+  currCli = c;
+  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+  applyClientDetailToDom(c);
   swTab('info');
   goScr('cli');
+}
+
+/**
+ * Recarrega clientes do Supabase e atualiza História global e/ou tela do cliente aberta.
+ * @param {{ silentToast?: boolean }} [opts] — silentToast: sem toast de sucesso (ex.: atualização ao chegar ao fim da lista)
+ */
+async function refreshHistoriaFromServer(opts) {
+  opts = opts || {};
+  const silentToast = opts.silentToast === true;
+  if (sessionStorage.getItem('cayena_offline') === '1') {
+    toast('Conecte-se à conta para atualizar os dados');
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) {
+    toast('Supabase não configurado');
+    return;
+  }
+  let tab = 'info';
+  if (document.getElementById('p-hist') && document.getElementById('p-hist').classList.contains('on')) tab = 'hist';
+  else if (document.getElementById('p-campos') && document.getElementById('p-campos').classList.contains('on')) tab = 'campos';
+
+  const ok = await loadClientsFromSupabase({ silent: true });
+  if (!ok) {
+    toast('Não foi possível atualizar');
+    return;
+  }
+
+  if (document.getElementById('scr-hist') && document.getElementById('scr-hist').classList.contains('on')) {
+    renderGlobalHist();
+  }
+
+  if (document.getElementById('scr-cli') && document.getElementById('scr-cli').classList.contains('on') && currCli) {
+    const c = getCliById(currCli.id);
+    if (c) {
+      currCli = c;
+      applyClientDetailToDom(c);
+      swTab(tab);
+    }
+  }
+
+  if (!silentToast) toast('✓ Lista atualizada', true);
+}
+
+/**
+ * Ao rolar até o fim da lista na aba História, sincroniza com o servidor (sem precisar F5).
+ * Usa o evento scroll (mais confiável que IntersectionObserver em alguns navegadores).
+ */
+function initHistScrollEndRefresh(scrollEl) {
+  if (!scrollEl || scrollEl._histBtmInit) return;
+  scrollEl._histBtmInit = true;
+  let lastAt = 0;
+  const COOLDOWN_MS = 5000;
+  const NEAR_BOTTOM_PX = 100;
+  scrollEl.addEventListener(
+    'scroll',
+    function () {
+      var sh = scrollEl.scrollHeight;
+      var ch = scrollEl.clientHeight;
+      if (sh <= ch + 24) return;
+      if (scrollEl.scrollTop + ch < sh - NEAR_BOTTOM_PX) return;
+      var now = Date.now();
+      if (now - lastAt < COOLDOWN_MS) return;
+      lastAt = now;
+      refreshHistoriaFromServer({ silentToast: true });
+    },
+    { passive: true }
+  );
+}
+
+const PTR_THRESHOLD = 72;
+
+function initPullToRefresh(scrollEl, onRefreshAsync) {
+  if (!scrollEl || scrollEl._ptrInit) return;
+  scrollEl._ptrInit = true;
+  let startY = 0;
+  let startTop = 0;
+  let tracking = false;
+  let pullAccum = 0;
+  let ptrDown = false;
+
+  const ind = document.createElement('div');
+  ind.className = 'ptr-hint';
+  ind.setAttribute('aria-hidden', 'true');
+  ind.textContent = '↓ Puxe e solte para atualizar (ou use ⟳)';
+  scrollEl.insertBefore(ind, scrollEl.firstChild);
+
+  function beginPull(clientY) {
+    startY = clientY;
+    startTop = scrollEl.scrollTop;
+    tracking = startTop <= 2;
+    pullAccum = 0;
+  }
+
+  function movePull(clientY) {
+    if (!tracking) return;
+    if (scrollEl.scrollTop > 2) {
+      tracking = false;
+      ind.classList.remove('ptr-visible', 'ptr-ready');
+      return;
+    }
+    pullAccum = clientY - startY;
+    if (pullAccum > 16) {
+      ind.classList.add('ptr-visible');
+      if (pullAccum >= PTR_THRESHOLD) ind.classList.add('ptr-ready');
+      else ind.classList.remove('ptr-ready');
+    } else {
+      ind.classList.remove('ptr-visible', 'ptr-ready');
+    }
+  }
+
+  function endPull() {
+    if (!tracking) return;
+    tracking = false;
+    const fire = pullAccum >= PTR_THRESHOLD && scrollEl.scrollTop <= 2;
+    ind.classList.remove('ptr-visible', 'ptr-ready');
+    pullAccum = 0;
+    if (!fire) return;
+    ind.textContent = 'Atualizando…';
+    ind.classList.add('ptr-visible');
+    Promise.resolve()
+      .then(function () {
+        return onRefreshAsync();
+      })
+      .catch(function (e) {
+        console.warn(e);
+        toast('Não foi possível atualizar');
+      })
+      .finally(function () {
+        ind.textContent = '↓ Puxe e solte para atualizar (ou use ⟳)';
+        ind.classList.remove('ptr-visible');
+      });
+  }
+
+  scrollEl.addEventListener(
+    'touchstart',
+    function (e) {
+      if (e.touches.length !== 1) return;
+      beginPull(e.touches[0].clientY);
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener(
+    'touchmove',
+    function (e) {
+      if (!tracking || e.touches.length !== 1) return;
+      movePull(e.touches[0].clientY);
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener(
+    'touchend',
+    function () {
+      endPull();
+    },
+    { passive: true }
+  );
+
+  /* Mouse / trackpad: sem touch, o gesto de puxar não disparava. */
+  scrollEl.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (e.pointerType === 'touch') return;
+      if (e.button !== 0) return;
+      ptrDown = true;
+      beginPull(e.clientY);
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener(
+    'pointermove',
+    function (e) {
+      if (e.pointerType === 'touch' || !ptrDown) return;
+      movePull(e.clientY);
+    },
+    { passive: true }
+  );
+
+  scrollEl.addEventListener('pointerup', function (e) {
+    if (e.pointerType === 'touch') return;
+    ptrDown = false;
+    endPull();
+  });
+  scrollEl.addEventListener('pointercancel', function (e) {
+    if (e.pointerType === 'touch') return;
+    ptrDown = false;
+    tracking = false;
+    ind.classList.remove('ptr-visible', 'ptr-ready');
+    pullAccum = 0;
+  });
 }
 
 function reminderStatusLabel(st) {
@@ -1303,11 +1502,20 @@ function buildHist(c) {
   }).join('');
 }
 
+var _histCliTabLastSync = 0;
+
 function swTab(t) {
   ['info', 'hist', 'campos'].forEach((id) => {
     document.getElementById('t-' + id).classList.toggle('on', id === t);
     document.getElementById('p-' + id).classList.toggle('on', id === t);
   });
+  if (t === 'hist' && document.getElementById('scr-cli') && document.getElementById('scr-cli').classList.contains('on')) {
+    var now = Date.now();
+    if (now - _histCliTabLastSync > 5000) {
+      _histCliTabLastSync = now;
+      refreshHistoriaFromServer({ silentToast: true });
+    }
+  }
 }
 
 function showMapPopupFromClient(c) {
@@ -1358,7 +1566,8 @@ function initLeafletMap() {
   if (!el) return;
 
   if (!mapInstance) {
-    mapInstance = L.map(el, { zoomControl: true }).setView([-23.55, -46.63], 12);
+    mapInstance = L.map(el, { zoomControl: false }).setView([-23.55, -46.63], 12);
+    L.control.zoom({ position: 'topright' }).addTo(mapInstance);
     /* Tiles via CARTO (dados OSM): tile.openstreetmap.org bloqueia requisições sem Referer (WebView, alguns browsers). */
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
       subdomains: 'abcd',
@@ -2154,13 +2363,19 @@ async function subVis() {
         toast('Erro ao salvar visita: ' + error.message);
         return;
       }
-      await loadClientsFromSupabase();
-      currCli = getCliById(currCli.id) || currCli;
+      const reloadOk = await loadClientsFromSupabase({ silent: true });
+      if (reloadOk) {
+        currCli = getCliById(currCli.id) || currCli;
+      } else {
+        if (!currCli.visitas) currCli.visitas = [];
+        currCli.visitas.unshift(visitPayload);
+      }
     } else {
       currCli.visitas.unshift(visitPayload);
     }
 
     buildHist(currCli);
+    maybeRefreshGlobalHistIfVisible();
     swTab('hist');
     document.getElementById('vissuc').classList.add('on');
     document.getElementById('vformbody').style.display = 'none';
@@ -2276,8 +2491,9 @@ function openClisTab() {
 }
 
 function openHistTab() {
-  renderGlobalHist();
   goScr('hist');
+  renderGlobalHist();
+  refreshHistoriaFromServer({ silentToast: true });
 }
 
 function renderGlobalHist() {
@@ -2287,7 +2503,7 @@ function renderGlobalHist() {
   window.__histDetailItems = entries;
   if (!entries.length) {
     el.innerHTML =
-      '<div class="empty"><div class="emico">📋</div>Nenhuma visita ou lembrete registrado ainda.</div>';
+      '<div class="empty"><div class="emico">📋</div>Nenhuma visita ou lembrete registrado ainda. Cadastros novos aparecem em Clientes; aqui só entram visitas e lembretes.</div>';
     return;
   }
   el.innerHTML = entries
@@ -2295,6 +2511,12 @@ function renderGlobalHist() {
       return renderHistSummaryRow(e, i);
     })
     .join('');
+}
+
+/** Atualiza a tela História global se ela estiver visível (ex.: após salvar visita). */
+function maybeRefreshGlobalHistIfVisible() {
+  const h = document.getElementById('scr-hist');
+  if (h && h.classList.contains('on')) renderGlobalHist();
 }
 
 function toggleMore() {
@@ -2337,5 +2559,9 @@ document.addEventListener('DOMContentLoaded', function () {
   initPickListsDelegation();
   ensureHistClickDelegation('hcont');
   ensureHistClickDelegation('hist-global');
+  initPullToRefresh(document.getElementById('scr-hist'), refreshHistoriaFromServer);
+  initPullToRefresh(document.getElementById('p-hist'), refreshHistoriaFromServer);
+  initHistScrollEndRefresh(document.getElementById('scr-hist'));
+  initHistScrollEndRefresh(document.getElementById('p-hist'));
   bootstrapAuth();
 });
