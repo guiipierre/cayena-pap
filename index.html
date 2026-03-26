@@ -111,6 +111,28 @@
       </div>
     </div>
 
+    <div class="scr" id="scr-route-plan">
+      <div class="route-plan-wrap">
+        <button type="button" class="backbtn" onclick="goScrFromRoutePlan()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <div class="route-plan-form">
+          <div class="hist-title" style="margin-bottom:8px">Rotas por vendedor</div>
+          <p class="route-plan-lead">Escolha o vendedor e toque nos clientes no mapa <strong>na ordem</strong> das visitas. A linha laranja mostra o trajeto. Depois salve.</p>
+          <div class="fg"><div class="flbl">Vendedor</div>
+            <select class="fi" id="route-seller" style="height:52px" onchange="onRouteSellerChange()">
+              <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="fg"><div class="flbl">Nome da rota</div>
+            <input type="text" class="fi" id="route-name" placeholder="Ex.: Terça — Zona Sul" autocomplete="off">
+          </div>
+          <div id="route-stops-list" class="route-stops-list"></div>
+          <button type="button" class="btnp" style="width:100%;margin-top:8px" onclick="saveSellerRoutePlan()">Salvar rota</button>
+          <p class="admin-foot" id="route-plan-msg" role="status"></p>
+        </div>
+        <div class="fmap route-plan-fmap"><div id="leaflet-route-map" class="leaflet-map" role="application" aria-label="Mapa para planejar rota"></div></div>
+      </div>
+    </div>
+
     <div class="scr" id="scr-admin">
       <div class="admin-wrap">
         <button type="button" class="backbtn" onclick="goScrFromAdmin()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
@@ -132,6 +154,7 @@
           <div id="leaflet-map" class="leaflet-map" role="application" aria-label="Mapa de clientes"></div>
         </div>
         <div class="mleg">
+          <div class="li" id="mleg-route-line" style="display:none"><div class="ld" style="background:var(--orange)"></div>Rota planejada</div>
           <div class="li"><div class="ld" style="background:var(--orange);opacity:.5"></div>Você está aqui</div>
         </div>
         <div class="mact">
@@ -286,6 +309,7 @@
     <div class="shdr"><div class="stit">Mais opções</div><div class="scls" onclick="closeOv('ov-more')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
     <div class="more-list">
       <button type="button" class="more-item" id="more-admin" style="display:none" onclick="closeOv('ov-more');openAdminTab()">Administração</button>
+      <button type="button" class="more-item" id="more-route-plan" style="display:none" onclick="closeOv('ov-more');openRoutePlannerTab()">Planejar rotas (mapa)</button>
       <button type="button" class="more-item" onclick="closeOv('ov-more');toast('Em breve')">Notificações</button>
       <div class="more-sep" aria-hidden="true"></div>
       <div class="more-group-label">Conta</div>
@@ -420,6 +444,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=13" defer></script>
+<script src="pap-app.js?v=14" defer></script>
 </body>
 </html>

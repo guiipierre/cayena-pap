@@ -47,7 +47,17 @@ body.auth-screen-open{overflow:hidden!important}
 /* Cliente: só .tp rola — evita dois scrolls competindo (meio/baixo “travando”) */
 #scr-cli{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
 /* Mapa: uma coluna de scroll só (mwrap/fmap) */
-#scr-map{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
+#scr-map,#scr-route-plan{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
+.route-plan-wrap{position:relative;width:100%;height:100%;min-height:0;display:flex;flex-direction:column;background:var(--cream)}
+.route-plan-form{padding:12px 16px 10px;flex-shrink:0;max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.route-plan-lead{font-size:12px;color:var(--cardamomo);line-height:1.45;margin:0 0 12px}
+.route-plan-fmap{flex:1 1 0%;min-height:160px}
+.route-stops-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:120px;overflow-y:auto}
+.route-stop-row{display:flex;align-items:center;gap:8px;background:var(--white);border:1px solid var(--gergelim);border-radius:10px;padding:8px 10px;font-size:13px}
+.route-stop-n{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:var(--orange);color:var(--white);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.route-stop-nome{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.route-stop-row button{border:none;background:var(--zimbro);color:var(--cravo);width:28px;height:28px;border-radius:8px;font-size:14px;cursor:pointer;touch-action:manipulation}
+.route-stop-row button:active{opacity:.85}
 
 /* Barra inferior fixa no viewport — não rola com o conteúdo; FAB central “flutuando” */
 .nav-shell{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,430px);max-width:430px;z-index:100;pointer-events:none;overflow:visible;box-sizing:border-box}

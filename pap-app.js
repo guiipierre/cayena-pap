@@ -889,9 +889,10 @@ async function loadMyProfile() {
 
 function updateAdminEntry() {
   const btn = document.getElementById('more-admin');
-  if (!btn) return;
+  const rp = document.getElementById('more-route-plan');
   const show = currentProfile && currentProfile.role === 'admin';
-  btn.style.display = show ? '' : 'none';
+  if (btn) btn.style.display = show ? '' : 'none';
+  if (rp) rp.style.display = show ? '' : 'none';
 }
 
 function openAdminTab() {
@@ -900,6 +901,19 @@ function openAdminTab() {
 }
 
 function goScrFromAdmin() {
+  goScr(prevScr || 'ana');
+}
+
+function openRoutePlannerTab() {
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    toast('Acesso restrito a administradores');
+    return;
+  }
+  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+  goScr('route-plan');
+}
+
+function goScrFromRoutePlan() {
   goScr(prevScr || 'ana');
 }
 
@@ -1112,6 +1126,12 @@ function goScr(s) {
   if (s === 'map') {
     setTimeout(function () {
       initLeafletMap();
+    }, 150);
+  }
+  if (s === 'route-plan') {
+    setTimeout(function () {
+      initRoutePlanMap();
+      loadRoutePlanningSellers();
     }, 150);
   }
   if (s === 'ana') {
@@ -1601,6 +1621,320 @@ let mapInstance = null;
 let mapMarkersLayer = null;
 let mapUserMarker = null;
 let mapDidInitialFit = false;
+/** Linha da rota planejada (vendedor) no mapa principal */
+let mapSellerRoutePolyline = null;
+
+/** Planejador admin: mapa secundário e paradas */
+let routePlanMapInstance = null;
+let routePlanMarkersLayer = null;
+let routePlanPolyline = null;
+let routePlanSellerRows = [];
+let routePlanStops = [];
+
+function initRoutePlanMap() {
+  if (typeof L === 'undefined') return;
+  const el = document.getElementById('leaflet-route-map');
+  if (!el) return;
+  if (!routePlanMapInstance) {
+    routePlanMapInstance = L.map(el, { zoomControl: false }).setView([-23.55, -46.63], 12);
+    L.control.zoom({ position: 'topright' }).addTo(routePlanMapInstance);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+      subdomains: 'abcd',
+      maxZoom: 20,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO',
+    }).addTo(routePlanMapInstance);
+    routePlanMarkersLayer = L.layerGroup().addTo(routePlanMapInstance);
+  } else {
+    setTimeout(function () {
+      routePlanMapInstance.invalidateSize();
+    }, 200);
+  }
+}
+
+async function loadRoutePlanningSellers() {
+  const sel = document.getElementById('route-seller');
+  if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">Selecione…</option>';
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const { data, error } = await sb.from('profiles').select('id, full_name').eq('role', 'seller').order('full_name');
+  if (error) {
+    console.warn(error);
+    return;
+  }
+  (data || []).forEach(function (p) {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = (p.full_name && String(p.full_name).trim()) || String(p.id).slice(0, 8) + '…';
+    sel.appendChild(opt);
+  });
+  if (keep && Array.prototype.some.call(sel.options, function (o) { return o.value === keep; })) {
+    sel.value = keep;
+  }
+}
+
+async function onRouteSellerChange() {
+  routePlanStops = [];
+  renderRouteStopList();
+  if (routePlanPolyline && routePlanMapInstance) {
+    routePlanMapInstance.removeLayer(routePlanPolyline);
+    routePlanPolyline = null;
+  }
+  const sel = document.getElementById('route-seller');
+  if (!sel || !sel.value) {
+    routePlanSellerRows = [];
+    if (routePlanMarkersLayer) routePlanMarkersLayer.clearLayers();
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const { data: assigns } = await sb.from('establishment_assignments').select('establishment_id').eq('user_id', sel.value);
+  const ids = (assigns || []).map(function (a) {
+    return a.establishment_id;
+  });
+  if (!ids.length) {
+    routePlanSellerRows = [];
+    toast('Este vendedor ainda não tem clientes atribuídos');
+    if (routePlanMarkersLayer) routePlanMarkersLayer.clearLayers();
+    return;
+  }
+  const { data: rows, error } = await sb.from('establishments').select('id, nome, lat, lng, status').in('id', ids);
+  if (error) {
+    toast(error.message);
+    return;
+  }
+  routePlanSellerRows = rows || [];
+  placeRoutePlanMarkers();
+}
+
+function placeRoutePlanMarkers() {
+  if (!routePlanMapInstance || !routePlanMarkersLayer) return;
+  routePlanMarkersLayer.clearLayers();
+  const pts = [];
+  (routePlanSellerRows || []).forEach(function (est) {
+    const lat = parseFloat(est.lat);
+    const lng = parseFloat(est.lng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+    const isNovo = est.status !== 'reat';
+    const m = L.marker([lat, lng], { icon: makeMapIcon(isNovo) });
+    m.on('click', function () {
+      addStopToRoutePlan(est);
+    });
+    m.addTo(routePlanMarkersLayer);
+    pts.push([lat, lng]);
+  });
+  if (pts.length) {
+    const b = L.latLngBounds(pts);
+    routePlanMapInstance.fitBounds(b.pad(0.12));
+  }
+}
+
+function addStopToRoutePlan(est) {
+  const lat = parseFloat(est.lat);
+  const lng = parseFloat(est.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+  if (routePlanStops.some(function (s) { return String(s.id) === String(est.id); })) {
+    toast('Cliente já está na rota');
+    return;
+  }
+  routePlanStops.push({
+    id: est.id,
+    nome: est.nome || 'Cliente',
+    lat: lat,
+    lng: lng,
+  });
+  renderRouteStopList();
+  redrawRoutePlanPolylineOnly();
+}
+
+function renderRouteStopList() {
+  const el = document.getElementById('route-stops-list');
+  if (!el) return;
+  if (!routePlanStops.length) {
+    el.innerHTML =
+      '<span style="font-size:12px;color:var(--cardamomo)">Toque nos pins na ordem das visitas.</span>';
+    return;
+  }
+  el.innerHTML = routePlanStops
+    .map(function (s, i) {
+      return (
+        '<div class="route-stop-row">' +
+        '<span class="route-stop-n">' +
+        (i + 1) +
+        '</span><span class="route-stop-nome">' +
+        escapeHtml(s.nome) +
+        '</span>' +
+        '<button type="button" aria-label="Subir" onclick="moveRouteStopIx(' +
+        i +
+        ',-1)">↑</button>' +
+        '<button type="button" aria-label="Descer" onclick="moveRouteStopIx(' +
+        i +
+        ',1)">↓</button>' +
+        '<button type="button" aria-label="Remover" onclick="removeRouteStopIx(' +
+        i +
+        ')">×</button>' +
+        '</div>'
+      );
+    })
+    .join('');
+}
+
+function moveRouteStopIx(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= routePlanStops.length) return;
+  const t = routePlanStops[i];
+  routePlanStops[i] = routePlanStops[j];
+  routePlanStops[j] = t;
+  renderRouteStopList();
+  redrawRoutePlanPolylineOnly();
+}
+
+function removeRouteStopIx(i) {
+  routePlanStops.splice(i, 1);
+  renderRouteStopList();
+  redrawRoutePlanPolylineOnly();
+}
+
+function redrawRoutePlanPolylineOnly() {
+  if (!routePlanMapInstance) return;
+  if (routePlanPolyline) {
+    routePlanMapInstance.removeLayer(routePlanPolyline);
+    routePlanPolyline = null;
+  }
+  if (routePlanStops.length < 2) return;
+  const latlngs = routePlanStops.map(function (s) {
+    return [s.lat, s.lng];
+  });
+  routePlanPolyline = L.polyline(latlngs, {
+    color: '#FF472F',
+    weight: 4,
+    opacity: 0.9,
+  }).addTo(routePlanMapInstance);
+}
+
+async function saveSellerRoutePlan() {
+  const msgEl = document.getElementById('route-plan-msg');
+  if (msgEl) msgEl.textContent = '';
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    toast('Apenas administradores');
+    return;
+  }
+  const sellerId = document.getElementById('route-seller') && document.getElementById('route-seller').value;
+  const nameRaw = document.getElementById('route-name') && document.getElementById('route-name').value;
+  const name = (nameRaw || '').trim() || 'Rota';
+  if (!sellerId) {
+    toast('Selecione um vendedor');
+    return;
+  }
+  if (routePlanStops.length < 2) {
+    toast('Inclua pelo menos 2 paradas (toques no mapa)');
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) {
+    toast('Faça login');
+    return;
+  }
+  const { data: route, error: rErr } = await sb
+    .from('seller_routes')
+    .insert({
+      seller_user_id: sellerId,
+      name: name,
+      created_by: user.id,
+    })
+    .select('id')
+    .single();
+  if (rErr) {
+    toast(rErr.message);
+    return;
+  }
+  const rows = routePlanStops.map(function (s, i) {
+    return {
+      route_id: route.id,
+      establishment_id: s.id,
+      stop_order: i + 1,
+    };
+  });
+  const { error: sErr } = await sb.from('seller_route_stops').insert(rows);
+  if (sErr) {
+    toast(sErr.message);
+    return;
+  }
+  toast('Rota salva — o vendedor vê no mapa', true);
+  if (msgEl) {
+    msgEl.textContent = 'A linha tracejada laranja aparece no mapa do vendedor (rota mais recente).';
+  }
+}
+
+async function loadSellerPlannedRoutePolyline() {
+  const legEl = document.getElementById('mleg-route-line');
+  if (!mapInstance || !mapMarkersLayer) return;
+  if (currentProfile && currentProfile.role === 'admin') {
+    if (legEl) legEl.style.display = 'none';
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) {
+    if (legEl) legEl.style.display = 'none';
+    return;
+  }
+  const { data: route } = await sb
+    .from('seller_routes')
+    .select('id')
+    .eq('seller_user_id', user.id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!route || !route.id) {
+    if (legEl) legEl.style.display = 'none';
+    return;
+  }
+  const { data: stops } = await sb
+    .from('seller_route_stops')
+    .select('establishment_id, stop_order')
+    .eq('route_id', route.id)
+    .order('stop_order');
+  if (!stops || stops.length < 2) {
+    if (legEl) legEl.style.display = 'none';
+    return;
+  }
+  const ids = stops.map(function (s) {
+    return s.establishment_id;
+  });
+  const { data: ests } = await sb.from('establishments').select('id, lat, lng').in('id', ids);
+  const byId = {};
+  (ests || []).forEach(function (e) {
+    byId[String(e.id)] = e;
+  });
+  const latlngs = [];
+  stops.forEach(function (st) {
+    const e = byId[String(st.establishment_id)];
+    if (e && e.lat != null && e.lng != null) {
+      latlngs.push([parseFloat(e.lat), parseFloat(e.lng)]);
+    }
+  });
+  if (latlngs.length < 2) {
+    if (legEl) legEl.style.display = 'none';
+    return;
+  }
+  mapSellerRoutePolyline = L.polyline(latlngs, {
+    color: '#FF472F',
+    weight: 4,
+    opacity: 0.88,
+    dashArray: '10, 10',
+  }).addTo(mapInstance);
+  if (legEl) legEl.style.display = '';
+}
 
 function makeMapIcon(isNovo) {
   const cls = isNovo ? 'novo' : 'reat';
@@ -1645,6 +1979,10 @@ function initLeafletMap() {
 function refreshMapMarkers(opts) {
   if (typeof L === 'undefined' || !mapInstance || !mapMarkersLayer) return;
   opts = opts || {};
+  if (mapSellerRoutePolyline) {
+    mapInstance.removeLayer(mapSellerRoutePolyline);
+    mapSellerRoutePolyline = null;
+  }
   mapMarkersLayer.clearLayers();
 
   const pts = [];
@@ -1670,6 +2008,7 @@ function refreshMapMarkers(opts) {
         mapInstance.flyTo([la, lo], 16, { duration: 0.6 });
       }
     }
+    loadSellerPlannedRoutePolyline();
     return;
   }
 
@@ -1681,6 +2020,7 @@ function refreshMapMarkers(opts) {
     mapInstance.setView([-23.55, -46.63], 12);
     mapDidInitialFit = true;
   }
+  loadSellerPlannedRoutePolyline();
 }
 
 function mapCenterOnUser() {
