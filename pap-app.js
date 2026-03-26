@@ -42,6 +42,7 @@ const MOCK_DB_SEED = [
     lng: '-46.6901',
     obs: 'Dono atende 11h-23h. Interessado em laticínios.',
     visitas: [],
+    lembretes: [],
   },
   {
     id: 1,
@@ -76,6 +77,7 @@ const MOCK_DB_SEED = [
         obs: 'Reunião com fornecedor. Agendou para 18/03.',
       },
     ],
+    lembretes: [],
   },
   {
     id: 2,
@@ -104,6 +106,7 @@ const MOCK_DB_SEED = [
         obs: 'Pedido R$890 — frango e linguiça calabresa.',
       },
     ],
+    lembretes: [],
   },
   {
     id: 3,
@@ -125,6 +128,7 @@ const MOCK_DB_SEED = [
     lng: '-46.6644',
     obs: 'Foco em vegetais e proteínas vegetais.',
     visitas: [],
+    lembretes: [],
   },
 ];
 
@@ -183,6 +187,7 @@ function mapVisitRow(v) {
     const dt = new Date(v.created_at);
     dataStr = pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear();
   }
+  const created_at_ts = v.created_at ? new Date(v.created_at).getTime() : 0;
   return {
     data: dataStr,
     res: v.result,
@@ -192,7 +197,42 @@ function mapVisitRow(v) {
     nomeComprador: v.nome_comprador || '',
     tamEstab: v.tam_estab || '',
     tipoEstabChip: v.tipo_estab_chip || '',
+    created_at_ts: created_at_ts,
   };
+}
+
+function mapReminderRow(r) {
+  const remindAt = r.remind_at ? new Date(r.remind_at) : null;
+  let dataStr = '';
+  let horaStr = '';
+  let remind_at_ms = 0;
+  if (remindAt && !isNaN(remindAt.getTime())) {
+    remind_at_ms = remindAt.getTime();
+    dataStr = pad(remindAt.getDate()) + '/' + pad(remindAt.getMonth() + 1) + '/' + remindAt.getFullYear();
+    horaStr = pad(remindAt.getHours()) + ':' + pad(remindAt.getMinutes());
+  }
+  return {
+    id: r.id,
+    remind_at: r.remind_at,
+    remind_at_ms: remind_at_ms,
+    dataStr: dataStr,
+    horaStr: horaStr,
+    notes: r.notes || '',
+    status: r.status || 'pending',
+  };
+}
+
+function sortLembretesDesc(lembretes) {
+  return (lembretes || []).slice().sort(function (a, b) {
+    return (b.remind_at_ms || 0) - (a.remind_at_ms || 0);
+  });
+}
+
+function visitSortTimestamp(v) {
+  if (v && v.created_at_ts) return v.created_at_ts;
+  const pa = String((v && v.data) || '').split('/').map(Number);
+  if (pa.length < 3) return 0;
+  return new Date(pa[2], pa[1] - 1, pa[0], 12, 0, 0).getTime();
 }
 
 function sortVisitasDesc(visitas) {
@@ -208,6 +248,7 @@ function sortVisitasDesc(visitas) {
 
 function mapClientRow(row) {
   const visitas = sortVisitasDesc((row.visits || []).map(mapVisitRow));
+  const lembretes = sortLembretesDesc((row.reminders || []).map(mapReminderRow));
   const cnpjShown =
     row.cnpj_display || row.cnpj || formatCnpjDisplay(row.cnpj_normalized) || '';
   return {
@@ -229,6 +270,7 @@ function mapClientRow(row) {
     lng: row.lng != null ? String(row.lng) : '',
     obs: row.obs || '',
     visitas: visitas,
+    lembretes: lembretes,
     created_at: row.created_at || null,
   };
 }
@@ -477,9 +519,9 @@ function notifySupabaseListLoadError(msg, silent) {
   toast('Erro ao carregar clientes: ' + String(msg || ''));
 }
 
-/** Mesma lista de colunas usada em loadClientsFromSupabase (visitas aninhadas). */
+/** Mesma lista de colunas usada em loadClientsFromSupabase (visitas + lembretes aninhados). */
 const ESTABLISHMENT_SELECT_WITH_VISITS =
-  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at)';
+  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at),reminders(id,remind_at,notes,status,created_at)';
 
 function refreshOpenClientPickers() {
   const ovLem = document.getElementById('ov-lem');
@@ -503,7 +545,8 @@ async function mergeEstablishmentIntoDb(sb, establishmentId) {
     .from('establishments')
     .select(ESTABLISHMENT_SELECT_WITH_VISITS)
     .eq('id', establishmentId)
-    .order('created_at', { ascending: false, foreignTable: 'visits' });
+    .order('created_at', { ascending: false, foreignTable: 'visits' })
+    .order('remind_at', { ascending: false, foreignTable: 'reminders' });
   const { data, error } = await q.maybeSingle();
   if (error || !data) return;
   const mapped = mapClientRow(data);
@@ -569,6 +612,7 @@ async function loadClientsFromSupabase(opts) {
     .in('id', ids)
     .order('created_at', { ascending: false });
   q = q.order('created_at', { ascending: false, foreignTable: 'visits' });
+  q = q.order('remind_at', { ascending: false, foreignTable: 'reminders' });
   const { data, error } = await q;
   if (error) {
     notifySupabaseListLoadError(error.message, silent);
@@ -1070,34 +1114,182 @@ function openCli(idx) {
   goScr('cli');
 }
 
-function buildHist(c) {
+function reminderStatusLabel(st) {
+  const m = { pending: 'Pendente', done: 'Feito', cancelled: 'Cancelado' };
+  return m[st] || st || '—';
+}
+
+function buildTimelineEntriesForClient(c) {
+  const entries = [];
+  (c.visitas || []).forEach(function (v) {
+    entries.push({ kind: 'visit', sort: visitSortTimestamp(v), visit: v });
+  });
+  (c.lembretes || []).forEach(function (r) {
+    entries.push({ kind: 'reminder', sort: r.remind_at_ms || 0, reminder: r });
+  });
+  entries.sort(function (a, b) {
+    return b.sort - a.sort;
+  });
+  return entries;
+}
+
+function buildGlobalTimelineEntries() {
+  const entries = [];
+  DB.forEach(function (c) {
+    (c.visitas || []).forEach(function (v) {
+      entries.push({
+        kind: 'visit',
+        sort: visitSortTimestamp(v),
+        visit: v,
+        clienteNome: c.nome,
+      });
+    });
+    (c.lembretes || []).forEach(function (r) {
+      entries.push({
+        kind: 'reminder',
+        sort: r.remind_at_ms || 0,
+        reminder: r,
+        clienteNome: c.nome,
+      });
+    });
+  });
+  entries.sort(function (a, b) {
+    return b.sort - a.sort;
+  });
+  return entries;
+}
+
+function renderHistSummaryRow(entry, i) {
   const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
   const cls = { conv: 'vconv', nao: 'vnao', reag: 'vreag', aus: 'vreag' };
+  if (entry.kind === 'visit') {
+    const v = entry.visit;
+    return (
+      '<div class="vc hist-item" data-i="' +
+      i +
+      '" role="button" tabindex="0"><div class="vtop"><div class="vdate">' +
+      escapeHtml(v.data) +
+      '</div><div class="vres ' +
+      (cls[v.res] || 'vreag') +
+      '">' +
+      escapeHtml(lbl[v.res] || v.res || '') +
+      '</div></div><div class="vrep">📋 Visita · 👤 ' +
+      escapeHtml(v.rep || '') +
+      '</div>' +
+      (v.obs ? '<div class="vobs">' + escapeHtml(v.obs) + '</div>' : '') +
+      '<div class="hist-tap-hint">Toque para ver o formulário completo</div></div>'
+    );
+  }
+  const r = entry.reminder;
+  return (
+    '<div class="vc hist-item hist-rem" data-i="' +
+    i +
+    '" role="button" tabindex="0"><div class="vtop"><div class="vdate">' +
+    escapeHtml(r.dataStr + ' · ' + r.horaStr) +
+    '</div><div class="vres vlem">🔔 Lembrete</div></div>' +
+    (r.notes
+      ? '<div class="vobs">' + escapeHtml(r.notes.length > 120 ? r.notes.slice(0, 120) + '…' : r.notes) + '</div>'
+      : '<div class="vobs" style="opacity:.75">Sem observações</div>') +
+    '<div class="hist-tap-hint">Toque para ver data, hora e observações</div></div>'
+  );
+}
+
+function openHistDetailFromIndex(i) {
+  const items = window.__histDetailItems;
+  if (!items || items[i] == null) return;
+  const it = items[i];
+  const tit = document.getElementById('hist-detail-tit');
+  const body = document.getElementById('hist-detail-body');
+  const clienteLine = it.clienteNome
+    ? '<div class="hd-block hd-cli">🏪 ' + escapeHtml(it.clienteNome) + '</div>'
+    : '';
+  if (it.kind === 'visit') {
+    const v = it.visit;
+    tit.textContent = 'Visita';
+    const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
+    body.innerHTML =
+      clienteLine +
+      '<div class="hd-block"><span class="hdl">Data</span><span class="hdv">' +
+      escapeHtml(v.data || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Resultado</span><span class="hdv">' +
+      escapeHtml(lbl[v.res] || v.res || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Representante</span><span class="hdv">' +
+      escapeHtml(v.rep || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Observações</span><span class="hdv hd-mult">' +
+      escapeHtml(v.obs || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Celular comprador</span><span class="hdv">' +
+      escapeHtml(v.celComprador || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Nome comprador</span><span class="hdv">' +
+      escapeHtml(v.nomeComprador || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Tamanho do estab.</span><span class="hdv">' +
+      escapeHtml(v.tamEstab || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Tipo (chip)</span><span class="hdv">' +
+      escapeHtml(v.tipoEstabChip || '—') +
+      '</span></div>';
+  } else {
+    const r = it.reminder;
+    tit.textContent = 'Lembrete';
+    body.innerHTML =
+      clienteLine +
+      '<div class="hd-block"><span class="hdl">Data</span><span class="hdv">' +
+      escapeHtml(r.dataStr || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Hora</span><span class="hdv">' +
+      escapeHtml(r.horaStr || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Status</span><span class="hdv">' +
+      escapeHtml(reminderStatusLabel(r.status)) +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Observações</span><span class="hdv hd-mult">' +
+      escapeHtml(r.notes || '—') +
+      '</span></div>';
+  }
+  const ov = document.getElementById('ov-hist-detail');
+  if (ov) {
+    ov.classList.add('on');
+    ov.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function closeHistDetail() {
+  const ov = document.getElementById('ov-hist-detail');
+  if (ov) {
+    ov.classList.remove('on');
+    ov.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function ensureHistClickDelegation(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el || el._histDel) return;
+  el._histDel = true;
+  el.addEventListener('click', function (ev) {
+    const row = ev.target.closest('.hist-item');
+    if (!row) return;
+    const idx = parseInt(row.getAttribute('data-i'), 10);
+    if (!isNaN(idx)) openHistDetailFromIndex(idx);
+  });
+}
+
+function buildHist(c) {
   const hc = document.getElementById('hcont');
-  if (!c.visitas.length) {
+  const entries = buildTimelineEntriesForClient(c);
+  window.__histDetailItems = entries;
+  if (!entries.length) {
     hc.innerHTML =
-      '<div class="empty"><div class="emico">📋</div>Nenhuma visita registrada ainda.</div>';
+      '<div class="empty"><div class="emico">📋</div>Nenhuma visita ou lembrete neste cliente ainda.</div>';
     return;
   }
-  hc.innerHTML = c.visitas
-    .map(
-      (v) =>
-        '<div class="vc"><div class="vtop"><div class="vdate">' +
-        v.data +
-        '</div><div class="vres ' +
-        (cls[v.res] || 'vreag') +
-        '">' +
-        (lbl[v.res] || v.res) +
-        '</div></div><div class="vrep">👤 ' +
-        v.rep +
-        '</div>' +
-        (v.obs ? '<div class="vobs">' + v.obs + '</div>' : '') +
-        (v.celComprador
-          ? '<div class="vobs" style="margin-top:6px">📱 ' + v.celComprador + ' · ' + (v.nomeComprador || '') + '</div>'
-          : '') +
-        '</div>'
-    )
-    .join('');
+  hc.innerHTML = entries.map(function (e, i) {
+    return renderHistSummaryRow(e, i);
+  }).join('');
 }
 
 function swTab(t) {
@@ -1480,6 +1672,43 @@ async function subLembrete() {
         toast('Erro ao salvar lembrete: ' + error.message);
         return;
       }
+      await loadClientsFromSupabase({ silent: true });
+      const onCli =
+        document.getElementById('scr-cli') &&
+        document.getElementById('scr-cli').classList.contains('on');
+      if (onCli && currCli && String(currCli.id) === String(lemPickId)) {
+        const fresh = getCliById(lemPickId);
+        if (fresh) {
+          currCli = fresh;
+          buildHist(currCli);
+        }
+      }
+      const onHist =
+        document.getElementById('scr-hist') &&
+        document.getElementById('scr-hist').classList.contains('on');
+      if (onHist) renderGlobalHist();
+    } else {
+      if (!c.lembretes) c.lembretes = [];
+      const remindAt = new Date(d + 'T' + t + ':00');
+      c.lembretes.unshift(
+        mapReminderRow({
+          id: 'local-' + Date.now(),
+          remind_at: remindAt.toISOString(),
+          notes: obs || null,
+          status: 'pending',
+        })
+      );
+      c.lembretes = sortLembretesDesc(c.lembretes);
+      const onCli =
+        document.getElementById('scr-cli') &&
+        document.getElementById('scr-cli').classList.contains('on');
+      if (onCli && currCli && String(currCli.id) === String(lemPickId)) {
+        buildHist(currCli);
+      }
+      const onHist =
+        document.getElementById('scr-hist') &&
+        document.getElementById('scr-hist').classList.contains('on');
+      if (onHist) renderGlobalHist();
     }
 
     toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
@@ -1678,6 +1907,7 @@ async function subCad() {
         lng,
         obs,
         visitas: [],
+        lembretes: [],
         created_at: new Date().toISOString(),
       });
       refreshOpenClientPickers();
@@ -1703,6 +1933,7 @@ async function subCad() {
       lng,
       obs,
       visitas: [],
+      lembretes: [],
       created_at: new Date().toISOString(),
     });
   }
@@ -1881,6 +2112,7 @@ async function subVis() {
       nomeComprador: nome,
       tamEstab: currSeg === 'peq' ? 'Pequeno' : 'Grande',
       tipoEstabChip: currChip || '',
+      created_at_ts: Date.now(),
     };
 
     const sb = await ensureSupabase();
@@ -2039,41 +2271,17 @@ function openHistTab() {
 function renderGlobalHist() {
   const el = document.getElementById('hist-global');
   if (!el) return;
-  const rows = [];
-  DB.forEach((c) => {
-    (c.visitas || []).forEach((v) => {
-      rows.push({ cliente: c.nome, v });
-    });
-  });
-  rows.sort((a, b) => {
-    const pa = a.v.data.split('/').map(Number);
-    const pb = b.v.data.split('/').map(Number);
-    const da = new Date(pa[2], pa[1] - 1, pa[0]);
-    const db = new Date(pb[2], pb[1] - 1, pb[0]);
-    return db - da;
-  });
-  if (!rows.length) {
+  const entries = buildGlobalTimelineEntries();
+  window.__histDetailItems = entries;
+  if (!entries.length) {
     el.innerHTML =
-      '<div class="empty"><div class="emico">📋</div>Nenhuma visita registrada ainda.</div>';
+      '<div class="empty"><div class="emico">📋</div>Nenhuma visita ou lembrete registrado ainda.</div>';
     return;
   }
-  const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
-  const cls = { conv: 'vconv', nao: 'vnao', reag: 'vreag', aus: 'vreag' };
-  el.innerHTML = rows
-    .map(
-      (r) =>
-        '<div class="vc"><div class="vtop"><div class="vdate">' +
-        r.v.data +
-        '</div><div class="vres ' +
-        (cls[r.v.res] || 'vreag') +
-        '">' +
-        (lbl[r.v.res] || r.v.res) +
-        '</div></div><div class="vrep">🏪 ' +
-        r.cliente +
-        '</div>' +
-        (r.v.obs ? '<div class="vobs">' + r.v.obs + '</div>' : '') +
-        '</div>'
-    )
+  el.innerHTML = entries
+    .map(function (e, i) {
+      return renderHistSummaryRow(e, i);
+    })
     .join('');
 }
 
@@ -2115,5 +2323,7 @@ document.getElementById('v-cel')?.addEventListener('input', (e) => {
 document.addEventListener('DOMContentLoaded', function () {
   initCliListDelegation();
   initPickListsDelegation();
+  ensureHistClickDelegation('hcont');
+  ensureHistClickDelegation('hist-global');
   bootstrapAuth();
 });

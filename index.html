@@ -408,9 +408,22 @@
   </div>
 </div>
 
+<div class="ov" id="ov-hist-detail" aria-hidden="true" onclick="if(event.target.id==='ov-hist-detail')closeHistDetail()">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr">
+      <div class="stit" id="hist-detail-tit">Detalhe</div>
+      <div class="scls" onclick="closeHistDetail()" role="button" tabindex="0" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>
+    </div>
+    <div id="hist-detail-body" class="hist-detail-body"></div>
+  </div>
+</div>
+
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=4" defer></script>
+<script src="pap-app.js?v=5" defer></script>
 </body>
 </html>
