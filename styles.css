@@ -44,6 +44,9 @@ body.auth-screen-open{overflow:hidden!important}
 .ptr-hint{max-height:0;overflow:hidden;text-align:center;font-size:12px;color:var(--cardamomo);transition:max-height .2s ease,padding .2s;padding:0 12px;font-weight:600;pointer-events:none;flex-shrink:0}
 .ptr-hint.ptr-visible{max-height:48px;padding:10px 12px 6px}
 .ptr-hint.ptr-ready{color:var(--orange)}
+.ptr-hint.ptr-hint--fixed-bottom{position:fixed;left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right));bottom:calc(var(--nav-stack) + 8px);max-height:none;padding:0 16px;z-index:95;border-radius:999px;background:var(--white);border:1px solid var(--gergelim);box-shadow:var(--sh);opacity:0;transform:translateY(16px);transition:opacity .22s ease,transform .22s ease;flex-shrink:0}
+.ptr-hint.ptr-hint--fixed-bottom.ptr-visible{opacity:1;transform:translateY(0);padding:10px 16px}
+.ptr-hint.ptr-hint--fixed-bottom.ptr-ready{color:var(--orange)}
 /* Cliente: só .tp rola — evita dois scrolls competindo (meio/baixo “travando”) */
 #scr-cli{overflow:hidden!important;padding:0!important;padding-bottom:0!important}
 /* Mapa: uma coluna de scroll só (mwrap/fmap) */
@@ -274,7 +277,10 @@ body.auth-screen-open{overflow:hidden!important}
 .btnvis-danger{background:transparent!important;color:var(--red-err)!important;border:2px solid var(--red-err)!important;box-shadow:none!important}
 .btnvis-danger:active{filter:none;opacity:.92}
 
-.my-routes-wrap{padding-bottom:calc(var(--nav-stack) + 12px);min-height:0}
+#scr-my-routes{overflow:hidden;padding-bottom:0}
+.my-routes-wrap.my-routes-shell{display:flex;flex-direction:column;height:100%;min-height:0;box-sizing:border-box}
+.my-routes-list-view,.my-routes-detail-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
+.my-routes-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-bottom:calc(var(--nav-stack) + 12px)}
 .my-routes-lead{font-size:13px;color:var(--cardamomo);line-height:1.45;padding:0 20px 14px;margin:0}
 .my-routes-list{padding:0 20px;display:flex;flex-direction:column;gap:10px}
 .my-route-card{width:100%;text-align:left;border:1.5px solid var(--gergelim);border-radius:12px;padding:14px 16px;background:var(--white);box-shadow:var(--sh);cursor:pointer;font-family:'Rethink Sans',sans-serif;touch-action:manipulation;display:flex;flex-direction:column;align-items:flex-start;gap:4px}

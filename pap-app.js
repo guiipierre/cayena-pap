@@ -1316,7 +1316,11 @@ async function refreshMyRoutesFromServer(opts) {
  * Ao rolar até o fim da lista na aba História, sincroniza com o servidor (sem precisar F5).
  * Usa o evento scroll (mais confiável que IntersectionObserver em alguns navegadores).
  */
-function initHistScrollEndRefresh(scrollEl) {
+/**
+ * @param {HTMLElement} scrollEl
+ * @param {() => void} [scrollEndRefreshFn] — se omitido, usa História ou Rotas conforme o id (legado).
+ */
+function initHistScrollEndRefresh(scrollEl, scrollEndRefreshFn) {
   if (!scrollEl || scrollEl._histBtmInit) return;
   scrollEl._histBtmInit = true;
   let lastAt = 0;
@@ -1332,7 +1336,9 @@ function initHistScrollEndRefresh(scrollEl) {
       var now = Date.now();
       if (now - lastAt < COOLDOWN_MS) return;
       lastAt = now;
-      if (scrollEl.id === 'scr-my-routes') {
+      if (typeof scrollEndRefreshFn === 'function') {
+        scrollEndRefreshFn();
+      } else if (scrollEl.id === 'scr-my-routes') {
         refreshMyRoutesFromServer({ silentToast: true });
       } else {
         refreshHistoriaFromServer({ silentToast: true });
@@ -1344,31 +1350,56 @@ function initHistScrollEndRefresh(scrollEl) {
 
 const PTR_THRESHOLD = 72;
 
-function initPullToRefresh(scrollEl, onRefreshAsync) {
-  if (!scrollEl || scrollEl._ptrInit) return;
-  scrollEl._ptrInit = true;
+/**
+ * @param {HTMLElement} scrollEl — alvo principal (compat); com `opts.scrollTargets`, ouve todos.
+ * @param {() => void | Promise<void>} onRefreshAsync
+ * @param {{ scrollTargets?: HTMLElement[]; fixedBottomHint?: boolean; hintContainer?: HTMLElement }} [opts]
+ */
+function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
+  opts = opts || {};
+  const rawTargets = opts.scrollTargets && opts.scrollTargets.length ? opts.scrollTargets : [scrollEl];
+  const targets = rawTargets.filter(Boolean);
+  if (!targets.length || !onRefreshAsync) return;
+  const marker = targets[0];
+  if (marker._ptrInit) return;
+  marker._ptrInit = true;
+
+  const fixedBottom = opts.fixedBottomHint === true;
+  const hintContainer =
+    opts.hintContainer ||
+    (fixedBottom ? document.getElementById('scr-my-routes') : null) ||
+    targets[0];
+
   let startY = 0;
   let startTop = 0;
   let tracking = false;
   let pullAccum = 0;
   let ptrDown = false;
+  /** @type {HTMLElement} */
+  let activeScrollEl = targets[0];
 
   const ind = document.createElement('div');
   ind.className = 'ptr-hint';
+  if (fixedBottom) ind.classList.add('ptr-hint--fixed-bottom');
   ind.setAttribute('aria-hidden', 'true');
   ind.textContent = '↓ Puxe e solte para atualizar';
-  scrollEl.insertBefore(ind, scrollEl.firstChild);
+  if (fixedBottom) {
+    hintContainer.appendChild(ind);
+  } else {
+    targets[0].insertBefore(ind, targets[0].firstChild);
+  }
 
-  function beginPull(clientY) {
+  function beginPull(clientY, el) {
+    activeScrollEl = el || targets[0];
     startY = clientY;
-    startTop = scrollEl.scrollTop;
+    startTop = activeScrollEl.scrollTop;
     tracking = startTop <= 2;
     pullAccum = 0;
   }
 
   function movePull(clientY) {
     if (!tracking) return;
-    if (scrollEl.scrollTop > 2) {
+    if (activeScrollEl.scrollTop > 2) {
       tracking = false;
       ind.classList.remove('ptr-visible', 'ptr-ready');
       return;
@@ -1386,7 +1417,7 @@ function initPullToRefresh(scrollEl, onRefreshAsync) {
   function endPull() {
     if (!tracking) return;
     tracking = false;
-    const fire = pullAccum >= PTR_THRESHOLD && scrollEl.scrollTop <= 2;
+    const fire = pullAccum >= PTR_THRESHOLD && activeScrollEl.scrollTop <= 2;
     ind.classList.remove('ptr-visible', 'ptr-ready');
     pullAccum = 0;
     if (!fire) return;
@@ -1406,64 +1437,66 @@ function initPullToRefresh(scrollEl, onRefreshAsync) {
       });
   }
 
-  scrollEl.addEventListener(
-    'touchstart',
-    function (e) {
-      if (e.touches.length !== 1) return;
-      beginPull(e.touches[0].clientY);
-    },
-    { passive: true }
-  );
+  targets.forEach(function (t) {
+    t.addEventListener(
+      'touchstart',
+      function (e) {
+        if (e.touches.length !== 1) return;
+        beginPull(e.touches[0].clientY, t);
+      },
+      { passive: true }
+    );
 
-  scrollEl.addEventListener(
-    'touchmove',
-    function (e) {
-      if (!tracking || e.touches.length !== 1) return;
-      movePull(e.touches[0].clientY);
-    },
-    { passive: true }
-  );
+    t.addEventListener(
+      'touchmove',
+      function (e) {
+        if (!tracking || e.touches.length !== 1) return;
+        movePull(e.touches[0].clientY);
+      },
+      { passive: true }
+    );
 
-  scrollEl.addEventListener(
-    'touchend',
-    function () {
-      endPull();
-    },
-    { passive: true }
-  );
+    t.addEventListener(
+      'touchend',
+      function () {
+        endPull();
+      },
+      { passive: true }
+    );
 
-  /* Mouse / trackpad: sem touch, o gesto de puxar não disparava. */
-  scrollEl.addEventListener(
-    'pointerdown',
-    function (e) {
+    /* Mouse / trackpad: sem touch, o gesto de puxar não disparava. */
+    t.addEventListener(
+      'pointerdown',
+      function (e) {
+        if (e.pointerType === 'touch') return;
+        if (e.button !== 0) return;
+        ptrDown = true;
+        beginPull(e.clientY, t);
+      },
+      { passive: true }
+    );
+
+    t.addEventListener(
+      'pointermove',
+      function (e) {
+        if (e.pointerType === 'touch' || !ptrDown) return;
+        movePull(e.clientY);
+      },
+      { passive: true }
+    );
+
+    t.addEventListener('pointerup', function (e) {
       if (e.pointerType === 'touch') return;
-      if (e.button !== 0) return;
-      ptrDown = true;
-      beginPull(e.clientY);
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener(
-    'pointermove',
-    function (e) {
-      if (e.pointerType === 'touch' || !ptrDown) return;
-      movePull(e.clientY);
-    },
-    { passive: true }
-  );
-
-  scrollEl.addEventListener('pointerup', function (e) {
-    if (e.pointerType === 'touch') return;
-    ptrDown = false;
-    endPull();
-  });
-  scrollEl.addEventListener('pointercancel', function (e) {
-    if (e.pointerType === 'touch') return;
-    ptrDown = false;
-    tracking = false;
-    ind.classList.remove('ptr-visible', 'ptr-ready');
-    pullAccum = 0;
+      ptrDown = false;
+      endPull();
+    });
+    t.addEventListener('pointercancel', function (e) {
+      if (e.pointerType === 'touch') return;
+      ptrDown = false;
+      tracking = false;
+      ind.classList.remove('ptr-visible', 'ptr-ready');
+      pullAccum = 0;
+    });
   });
 }
 
@@ -3515,7 +3548,18 @@ document.addEventListener('DOMContentLoaded', function () {
   initPullToRefresh(document.getElementById('p-hist'), refreshHistoriaFromServer);
   initHistScrollEndRefresh(document.getElementById('scr-hist'));
   initHistScrollEndRefresh(document.getElementById('p-hist'));
-  initPullToRefresh(document.getElementById('scr-my-routes'), refreshMyRoutesFromServer);
-  initHistScrollEndRefresh(document.getElementById('scr-my-routes'));
+  var myRoutesListScroll = document.getElementById('my-routes-scroll-list');
+  var myRoutesDetailScroll = document.getElementById('my-routes-scroll-detail');
+  initPullToRefresh(myRoutesListScroll, refreshMyRoutesFromServer, {
+    scrollTargets: [myRoutesListScroll, myRoutesDetailScroll].filter(Boolean),
+    fixedBottomHint: true,
+    hintContainer: document.getElementById('scr-my-routes'),
+  });
+  initHistScrollEndRefresh(myRoutesListScroll, function () {
+    refreshMyRoutesFromServer({ silentToast: true });
+  });
+  initHistScrollEndRefresh(myRoutesDetailScroll, function () {
+    refreshMyRoutesFromServer({ silentToast: true });
+  });
   bootstrapAuth();
 });
