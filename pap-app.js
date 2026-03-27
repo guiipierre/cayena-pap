@@ -1036,8 +1036,18 @@ function openRoutePlannerTab() {
   goScr('route-plan');
 }
 
-function goScrFromRoutePlan() {
+function goBackFromRoutePlan() {
+  const root = document.getElementById('route-plan-root');
+  if (root && root.classList.contains('is-route-editor')) {
+    showRoutePlanHub();
+    return;
+  }
   goScr(prevScr || 'ana');
+}
+
+/** @deprecated use goBackFromRoutePlan */
+function goScrFromRoutePlan() {
+  goBackFromRoutePlan();
 }
 
 async function adminCreateSeller() {
@@ -1261,7 +1271,9 @@ function goScr(s) {
   if (s === 'route-plan') {
     setTimeout(function () {
       initRoutePlanMap();
-      loadRoutePlanningSellers();
+      loadRoutePlanningSellers().then(function () {
+        showRoutePlanHub();
+      });
     }, 150);
   }
   if (s === 'ana') {
@@ -1915,6 +1927,100 @@ async function loadRoutePlanningSellers() {
   }
 }
 
+function setRoutePlanMode(mode) {
+  const root = document.getElementById('route-plan-root');
+  if (!root) return;
+  root.classList.remove('is-route-hub', 'is-route-editor');
+  root.classList.add(mode === 'editor' ? 'is-route-editor' : 'is-route-hub');
+  const tit = document.getElementById('route-plan-main-title');
+  if (tit) tit.textContent = mode === 'editor' ? 'Montar rota' : 'Rotas por vendedor';
+}
+
+function showRoutePlanHub() {
+  setRoutePlanMode('hub');
+  refreshRouteHubRoutesList();
+}
+
+async function refreshRouteHubRoutesList() {
+  const listEl = document.getElementById('route-hub-list');
+  const emptyEl = document.getElementById('route-hub-empty');
+  const sel = document.getElementById('route-seller');
+  if (!listEl || !sel) return;
+  if (!sel.value) {
+    listEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = 'none';
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) return;
+  const { data, error } = await sb
+    .from('seller_routes')
+    .select('id, name, updated_at')
+    .eq('seller_user_id', sel.value)
+    .order('updated_at', { ascending: false });
+  if (error) {
+    console.warn(error);
+    return;
+  }
+  const routes = data || [];
+  if (routes.length === 0) {
+    listEl.innerHTML = '';
+    if (emptyEl) {
+      emptyEl.style.display = '';
+      emptyEl.textContent = 'Nenhuma rota ainda para este vendedor.';
+    }
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+  listEl.innerHTML = routes
+    .map(function (r) {
+      const d = r.updated_at ? new Date(r.updated_at) : null;
+      const dStr =
+        d && !isNaN(d.getTime())
+          ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '—';
+      const name = (r.name && String(r.name).trim()) || 'Rota';
+      return (
+        '<div class="route-hub-row">' +
+        '<span class="route-hub-row-name">' +
+        escapeHtml(name) +
+        '</span>' +
+        '<span class="route-hub-row-date">' +
+        escapeHtml(dStr) +
+        '</span>' +
+        '</div>'
+      );
+    })
+    .join('');
+}
+
+async function onRouteSellerHubChange() {
+  await refreshRouteHubRoutesList();
+}
+
+function openRoutePlanEditorNew() {
+  const sel = document.getElementById('route-seller');
+  if (!sel || !sel.value) {
+    toast('Selecione um vendedor primeiro');
+    return;
+  }
+  const rn = document.getElementById('route-name');
+  if (rn) rn.value = '';
+  const msgEl = document.getElementById('route-plan-msg');
+  if (msgEl) msgEl.textContent = '';
+  routePlanStops = [];
+  renderRouteStopList();
+  if (routePlanPolyline && routePlanMapInstance) {
+    routePlanMapInstance.removeLayer(routePlanPolyline);
+    routePlanPolyline = null;
+  }
+  setRoutePlanMode('editor');
+  setTimeout(function () {
+    initRoutePlanMap();
+    onRouteSellerChange();
+  }, 150);
+}
+
 async function onRouteSellerChange() {
   routePlanStops = [];
   renderRouteStopList();
@@ -2148,6 +2254,15 @@ async function saveSellerRoutePlan() {
     msgEl.textContent =
       'O traçado pelas ruas é guardado no servidor (uma vez por rota); no mapa o vendedor só carrega essa linha.';
   }
+  const rnClear = document.getElementById('route-name');
+  if (rnClear) rnClear.value = '';
+  routePlanStops = [];
+  renderRouteStopList();
+  if (routePlanPolyline && routePlanMapInstance) {
+    routePlanMapInstance.removeLayer(routePlanPolyline);
+    routePlanPolyline = null;
+  }
+  showRoutePlanHub();
 }
 
 function clearSellerRoutePolylines() {
