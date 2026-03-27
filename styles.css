@@ -29,7 +29,6 @@ body.auth-screen-open{overflow:hidden!important}
 
 .hdr{height:var(--hdr);background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:20}
 .hdr-logo{font-family:'Rethink Sans',sans-serif;font-weight:700;font-size:22px;color:var(--orange);letter-spacing:-.3px;line-height:1}
-.hdr-sub{font-size:11px;color:rgba(241,240,235,.5);font-weight:400;margin-top:1px}
 .hdr-right{display:flex;align-items:center;gap:10px}
 .hdr-more{width:36px;height:36px;border-radius:50%;background:var(--orange);border:none;display:flex;align-items:center;justify-content:center;color:var(--white);cursor:pointer;flex-shrink:0;padding:0;box-shadow:0 2px 10px rgba(255,71,47,.4);transition:transform .15s,filter .15s,box-shadow .15s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .hdr-more:active{transform:scale(.93);filter:brightness(.96)}
@@ -280,7 +279,7 @@ body.auth-screen-open{overflow:hidden!important}
 #scr-my-routes{overflow:hidden;padding-bottom:0}
 .my-routes-wrap.my-routes-shell{display:flex;flex-direction:column;height:100%;min-height:0;box-sizing:border-box}
 .my-routes-list-view,.my-routes-detail-view{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
-.my-routes-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-bottom:calc(var(--nav-stack) + 12px)}
+.my-routes-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding-top:10px;padding-bottom:calc(var(--nav-stack) + 12px)}
 .my-routes-lead{font-size:13px;color:var(--cardamomo);line-height:1.45;padding:0 20px 14px;margin:0}
 .my-routes-list{padding:0 20px;display:flex;flex-direction:column;gap:10px}
 .my-route-card{width:100%;text-align:left;border:1.5px solid var(--gergelim);border-radius:12px;padding:14px 16px;background:var(--white);box-shadow:var(--sh);cursor:pointer;font-family:'Rethink Sans',sans-serif;touch-action:manipulation;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
