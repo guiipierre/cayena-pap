@@ -469,9 +469,9 @@ textarea.fi{height:80px;resize:none;padding-top:14px;padding-bottom:14px;display
 .logout-btn-confirm{box-shadow:0 4px 20px rgba(255,71,47,.35)}
 
 ::-webkit-scrollbar{width:0;background:transparent}
-.admin-wrap{padding:22px 20px 0;position:relative;max-width:430px;margin:0 auto}
-.admin-wrap .backbtn{position:absolute;top:18px;left:20px}
-.admin-wrap .hist-title{padding-left:48px;padding-right:16px}
+.admin-wrap{max-width:430px;margin:0 auto}
+.admin-wrap > .dhdr.admin-dhdr{height:auto;min-height:var(--hdr);padding:10px 16px}
+.admin-form{padding:22px 20px 0}
 .admin-foot{font-size:12px;color:var(--cardamomo);margin-top:14px;line-height:1.4}
 
 .hist-wrap{padding:22px 20px 0}
