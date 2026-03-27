@@ -1352,7 +1352,7 @@ const PTR_THRESHOLD = 72;
 /**
  * @param {HTMLElement | null} scrollEl — alvo principal (compat); com `opts.scrollTargets`, ouve todos.
  * @param {() => void | Promise<void>} onRefreshAsync
- * @param {{ scrollTargets?: HTMLElement[]; getScrollEl?: () => HTMLElement | null; fixedBottomHint?: boolean; hintContainer?: HTMLElement }} [opts]
+ * @param {{ scrollTargets?: HTMLElement[]; getScrollEl?: () => HTMLElement | null }} [opts]
  */
 function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
   opts = opts || {};
@@ -1365,12 +1365,6 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
 
   const getScrollEl = typeof opts.getScrollEl === 'function' ? opts.getScrollEl : null;
 
-  const fixedBottom = opts.fixedBottomHint === true;
-  const hintContainer =
-    opts.hintContainer ||
-    (fixedBottom ? document.getElementById('scr-my-routes') : null) ||
-    targets[0];
-
   let startY = 0;
   let startTop = 0;
   let tracking = false;
@@ -1381,14 +1375,19 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
 
   const ind = document.createElement('div');
   ind.className = 'ptr-hint';
-  if (fixedBottom) ind.classList.add('ptr-hint--fixed-bottom');
   ind.setAttribute('aria-hidden', 'true');
   ind.textContent = '↓ Puxe e solte para atualizar';
-  if (fixedBottom) {
-    hintContainer.appendChild(ind);
-  } else {
-    targets[0].insertBefore(ind, targets[0].firstChild);
+
+  /** Dica no topo do elemento que rola (igual História); com getScrollEl, segue lista vs detalhe. */
+  function placePtrHint() {
+    var sc = getScrollEl ? getScrollEl() : targets[0];
+    if (!sc) return;
+    if (ind.parentNode === sc && sc.firstChild === ind) return;
+    if (ind.parentNode) ind.parentNode.removeChild(ind);
+    sc.insertBefore(ind, sc.firstChild);
   }
+
+  placePtrHint();
 
   function resolveScrollEl(el) {
     if (getScrollEl) {
@@ -1399,6 +1398,7 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
   }
 
   function beginPull(clientY, el) {
+    placePtrHint();
     activeScrollEl = resolveScrollEl(el);
     startY = clientY;
     startTop = activeScrollEl.scrollTop;
@@ -3576,8 +3576,6 @@ document.addEventListener('DOMContentLoaded', function () {
   initPullToRefresh(myRoutesListView, refreshMyRoutesFromServer, {
     scrollTargets: [myRoutesListView, myRoutesDetailView].filter(Boolean),
     getScrollEl: getMyRoutesActiveScrollEl,
-    fixedBottomHint: true,
-    hintContainer: document.getElementById('scr-my-routes'),
   });
   initHistScrollEndRefresh(myRoutesListScroll, function () {
     refreshMyRoutesFromServer({ silentToast: true });
