@@ -85,6 +85,16 @@ CREATE TABLE IF NOT EXISTS public.visits (
   tipo_estab_chip TEXT,
   business_unit public.business_unit_enum NOT NULL DEFAULT 'PAP'::public.business_unit_enum,
 
+  sax_sold TEXT CHECK (sax_sold IS NULL OR sax_sold IN ('sim', 'nao')),
+  sax_sale_reasons JSONB DEFAULT '[]'::jsonb,
+  sax_no_sale_reasons JSONB DEFAULT '[]'::jsonb,
+  sax_decisor_name TEXT,
+  sax_decisor_contact TEXT,
+  sax_best_contact_time TEXT,
+  sax_photo_fachada_url TEXT,
+  sax_photo_cardapio_url TEXT,
+  sax_obs_extra TEXT,
+
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -311,3 +321,52 @@ CREATE POLICY "reminders_insert_assigned" ON public.reminders FOR INSERT WITH CH
 
 CREATE POLICY "reminders_update_own" ON public.reminders FOR UPDATE USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "reminders_delete_own" ON public.reminders FOR DELETE USING (user_id = auth.uid());
+
+-- -----------------------------------------------------------------------------
+-- Storage: fotos de visita (arquivos); na tabela visits só ficam URLs — leve no DB
+-- -----------------------------------------------------------------------------
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'visit-photos',
+  'visit-photos',
+  true,
+  5242880,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']::text[]
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "visit_photos_public_read" ON storage.objects;
+CREATE POLICY "visit_photos_public_read" ON storage.objects
+  FOR SELECT TO public
+  USING (bucket_id = 'visit-photos');
+
+DROP POLICY IF EXISTS "visit_photos_authenticated_insert" ON storage.objects;
+CREATE POLICY "visit_photos_authenticated_insert" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'visit-photos'
+    AND split_part(name, '/', 1) = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "visit_photos_owner_update" ON storage.objects;
+CREATE POLICY "visit_photos_owner_update" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'visit-photos'
+    AND split_part(name, '/', 1) = auth.uid()::text
+  )
+  WITH CHECK (
+    bucket_id = 'visit-photos'
+    AND split_part(name, '/', 1) = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "visit_photos_owner_delete" ON storage.objects;
+CREATE POLICY "visit_photos_owner_delete" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'visit-photos'
+    AND split_part(name, '/', 1) = auth.uid()::text
+  );

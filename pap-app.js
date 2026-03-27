@@ -188,11 +188,26 @@ function mapVisitRow(v) {
     dataStr = pad(dt.getDate()) + '/' + pad(dt.getMonth() + 1) + '/' + dt.getFullYear();
   }
   const created_at_ts = v.created_at ? new Date(v.created_at).getTime() : 0;
+  const saxSale =
+    v.sax_sale_reasons == null
+      ? []
+      : Array.isArray(v.sax_sale_reasons)
+        ? v.sax_sale_reasons
+        : [];
+  const saxNo =
+    v.sax_no_sale_reasons == null
+      ? []
+      : Array.isArray(v.sax_no_sale_reasons)
+        ? v.sax_no_sale_reasons
+        : [];
   return {
     data: dataStr,
     res: v.result,
     rep: v.rep_name || '',
-    obs: v.obs || '',
+    obs:
+      v.business_unit === 'SAX'
+        ? v.sax_obs_extra || v.obs || ''
+        : v.obs || '',
     celComprador: v.cel_comprador || '',
     nomeComprador: v.nome_comprador || '',
     tamEstab: v.tam_estab || '',
@@ -200,6 +215,15 @@ function mapVisitRow(v) {
     businessUnit:
       v.business_unit === 'SAX' || v.visit_team === 'farmer' ? 'SAX' : 'PAP',
     created_at_ts: created_at_ts,
+    saxSold: v.sax_sold || '',
+    saxSaleReasons: saxSale,
+    saxNoSaleReasons: saxNo,
+    saxDecisorName: v.sax_decisor_name || '',
+    saxDecisorContact: v.sax_decisor_contact || '',
+    saxBestContactTime: v.sax_best_contact_time || '',
+    saxPhotoFachadaUrl: v.sax_photo_fachada_url || '',
+    saxPhotoCardapioUrl: v.sax_photo_cardapio_url || '',
+    saxObsExtra: v.sax_obs_extra || '',
   };
 }
 
@@ -523,7 +547,7 @@ function notifySupabaseListLoadError(msg, silent) {
 
 /** Mesma lista de colunas usada em loadClientsFromSupabase (visitas + lembretes aninhados). */
 const ESTABLISHMENT_SELECT_WITH_VISITS =
-  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,business_unit,created_at),reminders(id,remind_at,notes,status,created_at)';
+  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,business_unit,sax_sold,sax_sale_reasons,sax_no_sale_reasons,sax_decisor_name,sax_decisor_contact,sax_best_contact_time,sax_photo_fachada_url,sax_photo_cardapio_url,sax_obs_extra,created_at),reminders(id,remind_at,notes,status,created_at)';
 
 function refreshOpenClientPickers() {
   const ovLem = document.getElementById('ov-lem');
@@ -989,33 +1013,168 @@ function applyVisitFormMode() {
   if (tit) {
     tit.textContent = bu === 'SAX' ? 'Registrar visita (SAX)' : 'Registrar visita (PAP)';
   }
+  const fgCel = document.getElementById('visit-fg-cel');
+  const fgNome = document.getElementById('visit-fg-nome');
+  if (fgCel) fgCel.style.display = bu === 'PAP' ? '' : 'none';
+  if (fgNome) fgNome.style.display = bu === 'PAP' ? '' : 'none';
+  const obsLbl = document.getElementById('vis-obs-lbl');
+  if (obsLbl) obsLbl.textContent = bu === 'SAX' ? 'Observações extras' : 'Observações';
   const celLbl = document.querySelector('#fw-cel')?.closest('.fg')?.querySelector('.flbl');
   const nomLbl = document.querySelector('#fw-nome')?.closest('.fg')?.querySelector('.flbl');
-  if (bu === 'SAX') {
-    if (celLbl) celLbl.innerHTML = 'Telefone do contato <span class="req">*</span>';
-    if (nomLbl) nomLbl.innerHTML = 'Nome do contato <span class="req">*</span>';
-    const vn = document.getElementById('v-nome');
-    if (vn) vn.placeholder = 'Ex.: responsável pela compra';
-  } else {
+  if (bu === 'PAP') {
     if (celLbl) celLbl.innerHTML = 'Celular do comprador <span class="req">*</span>';
     if (nomLbl) nomLbl.innerHTML = 'Nome do comprador <span class="req">*</span>';
     const vn = document.getElementById('v-nome');
     if (vn) vn.placeholder = 'Ex: João da Padaria';
+    const vo = document.getElementById('v-obs');
+    if (vo) vo.placeholder = 'O que foi discutido, próximos passos, produtos de interesse...';
+  } else {
+    const vo = document.getElementById('v-obs');
+    if (vo) vo.placeholder = 'Informações adicionais (opcional)';
   }
 }
 
 function getTamEstabFromForm() {
   if (getVisitFormBusinessUnit() === 'SAX') {
-    return currSegSax === 'peq' ? 'Pequeno' : 'Grande';
+    return '';
   }
   return currSeg === 'peq' ? 'Pequeno' : 'Grande';
 }
 
 function getActiveChipText() {
-  const bu = getVisitFormBusinessUnit();
-  const grid = document.getElementById(bu === 'SAX' ? 'chip-grid-sax' : 'chip-grid');
+  if (getVisitFormBusinessUnit() === 'SAX') {
+    return '';
+  }
+  const grid = document.getElementById('chip-grid');
   const on = grid && grid.querySelector('.chip-opt.on');
   return on ? String(on.textContent || '').trim() : '';
+}
+
+function setSaxSold(val) {
+  const sim = document.getElementById('sax-sold-sim');
+  const nao = document.getElementById('sax-sold-nao');
+  const wrapSale = document.getElementById('sax-wrap-sale-reasons');
+  const wrapNo = document.getElementById('sax-wrap-no-sale-reasons');
+  if (!sim || !nao) return;
+  if (val === 'sim') {
+    sim.classList.add('on');
+    nao.classList.remove('on');
+  } else if (val === 'nao') {
+    nao.classList.add('on');
+    sim.classList.remove('on');
+  } else {
+    sim.classList.remove('on');
+    nao.classList.remove('on');
+  }
+  if (wrapSale) wrapSale.style.display = val === 'sim' ? '' : 'none';
+  if (wrapNo) wrapNo.style.display = val === 'nao' ? '' : 'none';
+}
+
+function togSaxChip(el) {
+  if (!el || !el.classList.contains('sax-chip')) return;
+  el.classList.toggle('on');
+}
+
+function getSaxSold() {
+  const sim = document.getElementById('sax-sold-sim');
+  const nao = document.getElementById('sax-sold-nao');
+  if (sim && sim.classList.contains('on')) return 'sim';
+  if (nao && nao.classList.contains('on')) return 'nao';
+  return null;
+}
+
+function getSaxSaleReasonsFromDom() {
+  return Array.from(document.querySelectorAll('#sax-grid-sale .sax-chip.on'))
+    .map(function (el) {
+      return String(el.textContent || '').trim();
+    })
+    .filter(Boolean);
+}
+
+function getSaxNoSaleReasonsFromDom() {
+  return Array.from(document.querySelectorAll('#sax-grid-no-sale .sax-chip.on'))
+    .map(function (el) {
+      return String(el.textContent || '').trim();
+    })
+    .filter(Boolean);
+}
+
+function resetSaxVisitForm() {
+  setSaxSold(null);
+  document.querySelectorAll('#sax-grid-sale .sax-chip, #sax-grid-no-sale .sax-chip').forEach(function (c) {
+    c.classList.remove('on');
+  });
+  const sn = document.getElementById('sax-nome-decisor');
+  const sc = document.getElementById('sax-cel-decisor');
+  const sh = document.getElementById('sax-horario');
+  if (sn) sn.value = '';
+  if (sc) sc.value = '';
+  if (sh) sh.selectedIndex = 0;
+  ['sax-photo-fachada', 'sax-photo-cardapio'].forEach(function (id) {
+    const inp = document.getElementById(id);
+    if (inp) inp.value = '';
+  });
+  ['sax-preview-fachada', 'sax-preview-cardapio'].forEach(function (id) {
+    const pr = document.getElementById(id);
+    if (pr) {
+      pr.style.display = 'none';
+      const im = pr.querySelector('img');
+      if (im) im.removeAttribute('src');
+    }
+  });
+  const fg = document.getElementById('sax-fg-fachada');
+  if (fg) fg.classList.remove('fi-err');
+}
+
+function previewSaxPhoto(inputEl, previewId, imgId) {
+  const file = inputEl && inputEl.files && inputEl.files[0];
+  const wrap = document.getElementById(previewId);
+  const img = document.getElementById(imgId);
+  if (!file || !wrap || !img) return;
+  if (file.size > 5 * 1024 * 1024) {
+    toast('Imagem deve ter no máximo 5 MB');
+    inputEl.value = '';
+    return;
+  }
+  const url = URL.createObjectURL(file);
+  img.src = url;
+  wrap.style.display = '';
+}
+
+function bindSaxPhotoInputsOnce() {
+  if (bindSaxPhotoInputsOnce._done) return;
+  bindSaxPhotoInputsOnce._done = true;
+  const f = document.getElementById('sax-photo-fachada');
+  const c = document.getElementById('sax-photo-cardapio');
+  if (f) {
+    f.addEventListener('change', function () {
+      previewSaxPhoto(f, 'sax-preview-fachada', 'sax-img-fachada');
+    });
+  }
+  if (c) {
+    c.addEventListener('change', function () {
+      previewSaxPhoto(c, 'sax-preview-cardapio', 'sax-img-cardapio');
+    });
+  }
+}
+
+async function uploadVisitPhotoToStorage(file, kind) {
+  if (!file || !file.size) return null;
+  const sb = await ensureSupabase();
+  if (!sb) throw new Error('Supabase não configurado');
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+  if (!user) throw new Error('Faça login');
+  const ext = file.type && file.type.indexOf('png') >= 0 ? 'png' : 'jpg';
+  const path = user.id + '/' + (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())) + '-' + kind + '.' + ext;
+  const { error } = await sb.storage.from('visit-photos').upload(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: false,
+  });
+  if (error) throw error;
+  const { data: pub } = sb.storage.from('visit-photos').getPublicUrl(path);
+  return pub.publicUrl;
 }
 
 function openAdminTab() {
@@ -1243,7 +1402,6 @@ let pinIdx = null;
 let lemPickId = null;
 let cadStep = 1;
 let currSeg = 'peq';
-let currSegSax = 'peq';
 let currChip = null;
 
 /** Evita duplo envio (duplo toque) em cadastro / lembrete / visita. */
@@ -1689,6 +1847,12 @@ function renderHistSummaryRow(entry, i) {
   if (entry.kind === 'visit') {
     const v = entry.visit;
     const teamExtra = v.businessUnit === 'SAX' ? ' · SAX' : '';
+    const saxHint =
+      v.businessUnit === 'SAX' && v.saxSold
+        ? v.saxSold === 'sim'
+          ? ' · Venda: sim'
+          : ' · Venda: não'
+        : '';
     return (
       '<div class="vc hist-item" data-i="' +
       i +
@@ -1700,6 +1864,7 @@ function renderHistSummaryRow(entry, i) {
       escapeHtml(lbl[v.res] || v.res || '') +
       '</div></div><div class="vrep">📋 Visita' +
       teamExtra +
+      saxHint +
       ' · 👤 ' +
       escapeHtml(v.rep || '') +
       '</div>' +
@@ -1735,6 +1900,55 @@ function openHistDetailFromIndex(i) {
     tit.textContent = 'Visita';
     const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
     const teamLbl = v.businessUnit === 'SAX' ? 'SAX' : 'PAP';
+    let saxHtml = '';
+    if (v.businessUnit === 'SAX' && v.saxSold) {
+      saxHtml +=
+        '<div class="hd-block"><span class="hdl">Conseguiu vender?</span><span class="hdv">' +
+        escapeHtml(v.saxSold === 'sim' ? 'Sim' : 'Não') +
+        '</span></div>';
+      if (v.saxSaleReasons && v.saxSaleReasons.length) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Motivo da venda</span><span class="hdv hd-mult">' +
+          escapeHtml(v.saxSaleReasons.join(' · ')) +
+          '</span></div>';
+      }
+      if (v.saxNoSaleReasons && v.saxNoSaleReasons.length) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Motivo de não vender</span><span class="hdv hd-mult">' +
+          escapeHtml(v.saxNoSaleReasons.join(' · ')) +
+          '</span></div>';
+      }
+      if (v.saxBestContactTime) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Melhor horário</span><span class="hdv">' +
+          escapeHtml(v.saxBestContactTime) +
+          '</span></div>';
+      }
+      if (v.saxPhotoFachadaUrl) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Foto fachada</span><span class="hdv"><a href="' +
+          escapeHtml(v.saxPhotoFachadaUrl) +
+          '" target="_blank" rel="noopener noreferrer">Abrir imagem</a></span></div>';
+      }
+      if (v.saxPhotoCardapioUrl) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Foto cardápio</span><span class="hdv"><a href="' +
+          escapeHtml(v.saxPhotoCardapioUrl) +
+          '" target="_blank" rel="noopener noreferrer">Abrir imagem</a></span></div>';
+      }
+      if (v.saxDecisorName) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Nome do decisor</span><span class="hdv">' +
+          escapeHtml(v.saxDecisorName) +
+          '</span></div>';
+      }
+      if (v.saxDecisorContact) {
+        saxHtml +=
+          '<div class="hd-block"><span class="hdl">Contato do decisor</span><span class="hdv">' +
+          escapeHtml(v.saxDecisorContact) +
+          '</span></div>';
+      }
+    }
     body.innerHTML =
       clienteLine +
       '<div class="hd-block"><span class="hdl">Data</span><span class="hdv">' +
@@ -1746,10 +1960,13 @@ function openHistDetailFromIndex(i) {
       '<div class="hd-block"><span class="hdl">Resultado</span><span class="hdv">' +
       escapeHtml(lbl[v.res] || v.res || '—') +
       '</span></div>' +
+      saxHtml +
       '<div class="hd-block"><span class="hdl">Representante</span><span class="hdv">' +
       escapeHtml(v.rep || '—') +
       '</span></div>' +
-      '<div class="hd-block"><span class="hdl">Observações</span><span class="hdv hd-mult">' +
+      '<div class="hd-block"><span class="hdl">' +
+      (v.businessUnit === 'SAX' ? 'Observações extras' : 'Observações') +
+      '</span><span class="hdv hd-mult">' +
       escapeHtml(v.obs || '—') +
       '</span></div>' +
       '<div class="hd-block"><span class="hdl">Celular comprador</span><span class="hdv">' +
@@ -1758,12 +1975,14 @@ function openHistDetailFromIndex(i) {
       '<div class="hd-block"><span class="hdl">Nome comprador</span><span class="hdv">' +
       escapeHtml(v.nomeComprador || '—') +
       '</span></div>' +
-      '<div class="hd-block"><span class="hdl">Tamanho do estab.</span><span class="hdv">' +
-      escapeHtml(v.tamEstab || '—') +
-      '</span></div>' +
-      '<div class="hd-block"><span class="hdl">Tipo (chip)</span><span class="hdv">' +
-      escapeHtml(v.tipoEstabChip || '—') +
-      '</span></div>';
+      (v.businessUnit === 'PAP'
+        ? '<div class="hd-block"><span class="hdl">Tamanho do estab.</span><span class="hdv">' +
+          escapeHtml(v.tamEstab || '—') +
+          '</span></div>' +
+          '<div class="hd-block"><span class="hdl">Tipo (chip)</span><span class="hdv">' +
+          escapeHtml(v.tipoEstabChip || '—') +
+          '</span></div>'
+        : '');
   } else {
     const r = it.reminder;
     tit.textContent = 'Lembrete';
@@ -3503,6 +3722,8 @@ function openVis() {
     }
   }
   applyVisitFormMode();
+  bindSaxPhotoInputsOnce();
+  resetSaxVisitForm();
 
   setTimeout(() => {
     const vc = document.getElementById('v-cel');
@@ -3511,7 +3732,6 @@ function openVis() {
     if (vn) vn.value = '';
     document.getElementById('v-obs').value = '';
     selSeg('peq');
-    selSegSax('peq');
     document.querySelectorAll('.chip-opt').forEach((c) => c.classList.remove('on'));
     currChip = null;
     document.querySelectorAll('.status-card').forEach((c) => c.classList.remove('on'));
@@ -3523,14 +3743,6 @@ function selSeg(s) {
   currSeg = s;
   document.getElementById('seg-peq').className = 'seg-opt' + (s === 'peq' ? ' on' : '');
   document.getElementById('seg-gra').className = 'seg-opt' + (s === 'gra' ? ' on' : '');
-}
-
-function selSegSax(s) {
-  currSegSax = s;
-  const peq = document.getElementById('seg-sax-peq');
-  const gra = document.getElementById('seg-sax-gra');
-  if (peq) peq.className = 'seg-opt' + (s === 'peq' ? ' on' : '');
-  if (gra) gra.className = 'seg-opt' + (s === 'gra' ? ' on' : '');
 }
 
 function selChip(el) {
@@ -3548,23 +3760,8 @@ function togSC(id) {
   document.getElementById(id).classList.toggle('on');
 }
 
-function togSCSax(id) {
-  ['sc-sax-op', 'sc-sax-reag', 'sc-sax-aus'].forEach(function (tid) {
-    const el = document.getElementById(tid);
-    if (el) el.classList.toggle('on', tid === id);
-  });
-}
-
 function visitResultFromCards() {
   if (getVisitFormBusinessUnit() === 'SAX') {
-    const op = document.getElementById('sc-sax-op').classList.contains('on');
-    const reag = document.getElementById('sc-sax-reag').classList.contains('on');
-    const aus = document.getElementById('sc-sax-aus').classList.contains('on');
-    const n = [op, reag, aus].filter(Boolean).length;
-    if (n !== 1) return null;
-    if (op) return 'conv';
-    if (reag) return 'reag';
-    if (aus) return 'aus';
     return null;
   }
   const aus = document.getElementById('sc-ausente').classList.contains('on');
@@ -3579,33 +3776,80 @@ async function subVis() {
   if (submitBusy.vis) return;
   if (!currCli) return;
 
-  const celRaw = document.getElementById('v-cel')?.value.replace(/\D/g, '') || '';
-  const nome = document.getElementById('v-nome')?.value.trim() || '';
-  let ok = true;
-  const wrapCel = document.getElementById('fw-cel');
-  const wrapNome = document.getElementById('fw-nome');
-  if (!celRaw || celRaw.length < 10) {
-    wrapCel?.classList.add('fi-err');
-    wrapCel?.closest('.fg')?.classList.add('fi-err');
-    ok = false;
-  } else {
-    wrapCel?.classList.remove('fi-err');
-    wrapCel?.closest('.fg')?.classList.remove('fi-err');
-  }
-  if (!nome) {
-    wrapNome?.classList.add('fi-err');
-    wrapNome?.closest('.fg')?.classList.add('fi-err');
-    ok = false;
-  } else {
-    wrapNome?.classList.remove('fi-err');
-    wrapNome?.closest('.fg')?.classList.remove('fi-err');
-  }
-  if (!ok) return;
+  const bu = getVisitFormBusinessUnit();
+  let currRes = null;
+  let nome = '';
+  let celStr = '';
+  let obs = '';
 
-  const currRes = visitResultFromCards();
-  if (!currRes) {
-    toast(getVisitFormBusinessUnit() === 'SAX' ? '⚠️ Selecione o resultado da visita (SAX)' : '⚠️ Selecione o status da visita');
-    return;
+  if (bu === 'PAP') {
+    const celRaw = document.getElementById('v-cel')?.value.replace(/\D/g, '') || '';
+    nome = document.getElementById('v-nome')?.value.trim() || '';
+    let ok = true;
+    const wrapCel = document.getElementById('fw-cel');
+    const wrapNome = document.getElementById('fw-nome');
+    if (!celRaw || celRaw.length < 10) {
+      wrapCel?.classList.add('fi-err');
+      wrapCel?.closest('.fg')?.classList.add('fi-err');
+      ok = false;
+    } else {
+      wrapCel?.classList.remove('fi-err');
+      wrapCel?.closest('.fg')?.classList.remove('fi-err');
+    }
+    if (!nome) {
+      wrapNome?.classList.add('fi-err');
+      wrapNome?.closest('.fg')?.classList.add('fi-err');
+      ok = false;
+    } else {
+      wrapNome?.classList.remove('fi-err');
+      wrapNome?.closest('.fg')?.classList.remove('fi-err');
+    }
+    if (!ok) return;
+
+    currRes = visitResultFromCards();
+    if (!currRes) {
+      toast('⚠️ Selecione o status da visita');
+      return;
+    }
+    obs = document.getElementById('v-obs').value.trim();
+    celStr = document.getElementById('v-cel').value.trim();
+  } else {
+    bindSaxPhotoInputsOnce();
+    const sold = getSaxSold();
+    if (!sold) {
+      toast('⚠️ Selecione se conseguiu vender');
+      return;
+    }
+    if (sold === 'sim') {
+      if (getSaxSaleReasonsFromDom().length === 0) {
+        toast('⚠️ Marque pelo menos um motivo da venda');
+        return;
+      }
+    } else if (getSaxNoSaleReasonsFromDom().length === 0) {
+      toast('⚠️ Marque pelo menos um motivo de não venda');
+      return;
+    }
+    const fIn = document.getElementById('sax-photo-fachada');
+    const fFile = fIn && fIn.files && fIn.files[0];
+    const fgF = document.getElementById('sax-fg-fachada');
+    if (!fFile) {
+      if (fgF) fgF.classList.add('fi-err');
+      toast('⚠️ Tire ou envie a foto da fachada');
+      return;
+    }
+    if (fgF) fgF.classList.remove('fi-err');
+
+    const sbPre = await ensureSupabase();
+    const { data: uPre } = sbPre ? await sbPre.auth.getUser() : { data: {} };
+    if (!sbPre || !uPre.user || sessionStorage.getItem('cayena_offline')) {
+      toast('Visita SAX com fotos precisa de conexão e login');
+      return;
+    }
+
+    currRes = sold === 'sim' ? 'conv' : 'nao';
+    nome = document.getElementById('sax-nome-decisor').value.trim();
+    celStr = document.getElementById('sax-cel-decisor').value.trim();
+    obs = document.getElementById('v-obs').value.trim();
   }
 
   submitBusy.vis = true;
@@ -3617,7 +3861,6 @@ async function subVis() {
     visBtn.textContent = 'Salvando…';
   }
   try {
-    const obs = document.getElementById('v-obs').value.trim();
     const d = new Date();
     const dataStr = pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear();
 
@@ -3629,19 +3872,44 @@ async function subVis() {
     }
     const repName = sellerRepDisplayName(user);
 
-    const bu = getVisitFormBusinessUnit();
-    const visitPayload = {
+    let visitPayload = {
       data: dataStr,
       res: currRes,
       rep: repName,
       obs,
-      celComprador: document.getElementById('v-cel').value.trim(),
+      celComprador: celStr,
       nomeComprador: nome,
       tamEstab: getTamEstabFromForm(),
       tipoEstabChip: getActiveChipText(),
       businessUnit: bu,
       created_at_ts: Date.now(),
     };
+
+    if (bu === 'SAX') {
+      const sold = getSaxSold();
+      const horario = (document.getElementById('sax-horario') && document.getElementById('sax-horario').value) || '';
+      let fachadaUrl = '';
+      let cardapioUrl = null;
+      try {
+        const fFile = document.getElementById('sax-photo-fachada').files[0];
+        fachadaUrl = await uploadVisitPhotoToStorage(fFile, 'fachada');
+        const cFile = document.getElementById('sax-photo-cardapio').files[0];
+        if (cFile) cardapioUrl = await uploadVisitPhotoToStorage(cFile, 'cardapio');
+      } catch (e) {
+        console.warn(e);
+        toast('Erro ao enviar foto: ' + (e && e.message ? e.message : String(e)));
+        return;
+      }
+      visitPayload.saxSold = sold;
+      visitPayload.saxSaleReasons = sold === 'sim' ? getSaxSaleReasonsFromDom() : [];
+      visitPayload.saxNoSaleReasons = sold === 'nao' ? getSaxNoSaleReasonsFromDom() : [];
+      visitPayload.saxDecisorName = nome;
+      visitPayload.saxDecisorContact = celStr;
+      visitPayload.saxBestContactTime = horario;
+      visitPayload.saxPhotoFachadaUrl = fachadaUrl;
+      visitPayload.saxPhotoCardapioUrl = cardapioUrl || '';
+      visitPayload.saxObsExtra = obs;
+    }
 
     if (sb && user && !sessionStorage.getItem('cayena_offline')) {
       const isoDate =
@@ -3652,13 +3920,24 @@ async function subVis() {
         visit_date: isoDate,
         result: currRes,
         rep_name: visitPayload.rep,
-        obs,
-        cel_comprador: visitPayload.celComprador,
-        nome_comprador: nome,
-        tam_estab: visitPayload.tamEstab,
-        tipo_estab_chip: visitPayload.tipoEstabChip,
+        obs: bu === 'SAX' ? obs || null : obs,
+        cel_comprador: celStr || null,
+        nome_comprador: nome || null,
+        tam_estab: visitPayload.tamEstab || null,
+        tipo_estab_chip: visitPayload.tipoEstabChip || null,
         business_unit: bu,
       };
+      if (bu === 'SAX') {
+        row.sax_sold = visitPayload.saxSold;
+        row.sax_sale_reasons = visitPayload.saxSaleReasons;
+        row.sax_no_sale_reasons = visitPayload.saxNoSaleReasons;
+        row.sax_decisor_name = visitPayload.saxDecisorName || null;
+        row.sax_decisor_contact = visitPayload.saxDecisorContact || null;
+        row.sax_best_contact_time = visitPayload.saxBestContactTime || null;
+        row.sax_photo_fachada_url = visitPayload.saxPhotoFachadaUrl;
+        row.sax_photo_cardapio_url = visitPayload.saxPhotoCardapioUrl || null;
+        row.sax_obs_extra = visitPayload.saxObsExtra || null;
+      }
       const { error } = await sb.from('visits').insert(row);
       if (error) {
         toast('Erro ao salvar visita: ' + error.message);
@@ -3672,6 +3951,10 @@ async function subVis() {
         currCli.visitas.unshift(visitPayload);
       }
     } else {
+      if (bu === 'SAX') {
+        toast('Visita SAX não foi salva offline (exige fotos na nuvem)');
+        return;
+      }
       currCli.visitas.unshift(visitPayload);
     }
 
