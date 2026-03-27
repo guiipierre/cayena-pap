@@ -448,6 +448,10 @@ textarea.fi{height:80px;resize:none;padding-top:14px;padding-bottom:14px;display
 
 /* Confirmação de saída */
 #ov-logout{z-index:4000}
+.sheet-delete-route{max-height:none;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--orange)}
+.sheet-delete-route .shdr{padding-top:8px}
+.delete-route-hero{padding:8px 20px 0;text-align:center}
+.delete-route-hero-ico{width:64px;height:64px;margin:0 auto;border-radius:20px;background:linear-gradient(145deg,rgba(220,38,38,.12),rgba(220,38,38,.04));border:1px solid rgba(220,38,38,.22);display:flex;align-items:center;justify-content:center;color:#b91c1c}
 .sheet-logout{max-height:none;padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--orange)}
 .logout-hero{padding:8px 20px 0;text-align:center}
 .logout-hero-ico{width:64px;height:64px;margin:0 auto;border-radius:20px;background:linear-gradient(145deg,rgba(255,71,47,.12),rgba(255,71,47,.04));border:1px solid rgba(255,71,47,.2);display:flex;align-items:center;justify-content:center;color:var(--orange)}

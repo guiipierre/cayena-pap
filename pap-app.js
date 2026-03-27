@@ -2734,9 +2734,26 @@ function openCliFromMyRoute(clientId) {
   openCli(clientId);
 }
 
-async function confirmDeleteMyRoute() {
+function openDeleteRouteConfirm() {
   if (!myRoutesDetailRouteId) return;
-  if (!confirm('Excluir esta rota permanentemente? Não dá para desfazer.')) return;
+  const ov = document.getElementById('ov-delete-route');
+  if (ov) {
+    ov.classList.add('on');
+    ov.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function closeDeleteRouteConfirm() {
+  const ov = document.getElementById('ov-delete-route');
+  if (ov) {
+    ov.classList.remove('on');
+    ov.setAttribute('aria-hidden', 'true');
+  }
+}
+
+async function deleteMyRouteConfirmed() {
+  closeDeleteRouteConfirm();
+  if (!myRoutesDetailRouteId) return;
   const sb = await ensureSupabase();
   if (!sb) return;
   const rid = myRoutesDetailRouteId;
@@ -2759,6 +2776,11 @@ async function confirmDeleteMyRoute() {
   }
   showMyRoutesList();
   loadMyRoutesList();
+}
+
+/** @deprecated use openDeleteRouteConfirm */
+function confirmDeleteMyRoute() {
+  openDeleteRouteConfirm();
 }
 
 function makeMapIcon(isNovo) {

@@ -3,7 +3,7 @@
  * O bundle principal foi movido para pap-app.js para evitar cache do JS antigo.
  */
 (function () {
-  var v = '31';
+  var v = '32';
   if (document.querySelector('script[data-cayena-app="1"]')) return;
   var s = document.createElement('script');
   s.src = 'pap-app.js?v=' + v;
