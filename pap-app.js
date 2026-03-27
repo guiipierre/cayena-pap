@@ -197,6 +197,8 @@ function mapVisitRow(v) {
     nomeComprador: v.nome_comprador || '',
     tamEstab: v.tam_estab || '',
     tipoEstabChip: v.tipo_estab_chip || '',
+    businessUnit:
+      v.business_unit === 'SAX' || v.visit_team === 'farmer' ? 'SAX' : 'PAP',
     created_at_ts: created_at_ts,
   };
 }
@@ -521,7 +523,7 @@ function notifySupabaseListLoadError(msg, silent) {
 
 /** Mesma lista de colunas usada em loadClientsFromSupabase (visitas + lembretes aninhados). */
 const ESTABLISHMENT_SELECT_WITH_VISITS =
-  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,created_at),reminders(id,remind_at,notes,status,created_at)';
+  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,business_unit,created_at),reminders(id,remind_at,notes,status,created_at)';
 
 function refreshOpenClientPickers() {
   const ovLem = document.getElementById('ov-lem');
@@ -880,7 +882,7 @@ async function loadMyProfile() {
     updateAdminEntry();
     return;
   }
-  const { data, error } = await sb.from('profiles').select('role, full_name, phone').eq('id', user.id).single();
+  const { data, error } = await sb.from('profiles').select('role, full_name, phone, business_unit').eq('id', user.id).single();
   if (error) {
     console.warn(error);
     currentProfile = { role: 'seller' };
@@ -911,6 +913,109 @@ function updateSellerRoutesMenu() {
     currentProfile &&
     currentProfile.role !== 'admin';
   el.style.display = show ? '' : 'none';
+}
+
+/** Normaliza valor vindo do Supabase (enum, null, casing). */
+function normalizeBusinessUnit(raw) {
+  if (raw == null || raw === '') return null;
+  const s = String(raw).trim().toUpperCase();
+  if (s === 'SAX') return 'SAX';
+  if (s === 'PAP') return 'PAP';
+  return null;
+}
+
+/** Business unit do perfil (PAP ou SAX). NULL ou inválido → PAP. */
+function getBusinessUnit() {
+  const n = normalizeBusinessUnit(currentProfile && currentProfile.business_unit);
+  if (n) return n;
+  return 'PAP';
+}
+
+const ADMIN_VISIT_BU_KEY = 'cayena_admin_visit_bu';
+
+function ensureAdminVisitBuSession() {
+  try {
+    const a = sessionStorage.getItem(ADMIN_VISIT_BU_KEY);
+    if (a === 'PAP' || a === 'SAX') return a;
+    const b = normalizeBusinessUnit(currentProfile && currentProfile.business_unit) || 'PAP';
+    sessionStorage.setItem(ADMIN_VISIT_BU_KEY, b);
+    return b;
+  } catch (e) {
+    return 'PAP';
+  }
+}
+
+function syncAdminVisitBuSeg() {
+  let bu = 'PAP';
+  try {
+    const a = sessionStorage.getItem(ADMIN_VISIT_BU_KEY);
+    if (a === 'PAP' || a === 'SAX') bu = a;
+    else bu = normalizeBusinessUnit(currentProfile && currentProfile.business_unit) || 'PAP';
+  } catch (e) {}
+  const pap = document.getElementById('admin-bu-pap');
+  const sax = document.getElementById('admin-bu-sax');
+  if (pap) pap.className = 'seg-opt' + (bu === 'PAP' ? ' on' : '');
+  if (sax) sax.className = 'seg-opt' + (bu === 'SAX' ? ' on' : '');
+}
+
+/** BU efetivo no sheet de visita: admin escolhe PAP/SAX; demais seguem o perfil. */
+function getVisitFormBusinessUnit() {
+  if (currentProfile && currentProfile.role === 'admin') {
+    try {
+      const a = sessionStorage.getItem(ADMIN_VISIT_BU_KEY);
+      if (a === 'PAP' || a === 'SAX') return a;
+    } catch (e) {}
+    return normalizeBusinessUnit(currentProfile.business_unit) || 'PAP';
+  }
+  return getBusinessUnit();
+}
+
+function setAdminVisitBu(bu) {
+  if (bu !== 'PAP' && bu !== 'SAX') return;
+  try {
+    sessionStorage.setItem(ADMIN_VISIT_BU_KEY, bu);
+  } catch (e) {}
+  syncAdminVisitBuSeg();
+  applyVisitFormMode();
+}
+
+function applyVisitFormMode() {
+  const bu = getVisitFormBusinessUnit();
+  const papo = document.getElementById('vform-papo-section');
+  const sax = document.getElementById('vform-sax-section');
+  const tit = document.getElementById('vis-sheet-title');
+  if (papo) papo.style.display = bu === 'PAP' ? '' : 'none';
+  if (sax) sax.style.display = bu === 'SAX' ? '' : 'none';
+  if (tit) {
+    tit.textContent = bu === 'SAX' ? 'Registrar visita (SAX)' : 'Registrar visita (PAP)';
+  }
+  const celLbl = document.querySelector('#fw-cel')?.closest('.fg')?.querySelector('.flbl');
+  const nomLbl = document.querySelector('#fw-nome')?.closest('.fg')?.querySelector('.flbl');
+  if (bu === 'SAX') {
+    if (celLbl) celLbl.innerHTML = 'Telefone do contato <span class="req">*</span>';
+    if (nomLbl) nomLbl.innerHTML = 'Nome do contato <span class="req">*</span>';
+    const vn = document.getElementById('v-nome');
+    if (vn) vn.placeholder = 'Ex.: responsável pela compra';
+  } else {
+    if (celLbl) celLbl.innerHTML = 'Celular do comprador <span class="req">*</span>';
+    if (nomLbl) nomLbl.innerHTML = 'Nome do comprador <span class="req">*</span>';
+    const vn = document.getElementById('v-nome');
+    if (vn) vn.placeholder = 'Ex: João da Padaria';
+  }
+}
+
+function getTamEstabFromForm() {
+  if (getVisitFormBusinessUnit() === 'SAX') {
+    return currSegSax === 'peq' ? 'Pequeno' : 'Grande';
+  }
+  return currSeg === 'peq' ? 'Pequeno' : 'Grande';
+}
+
+function getActiveChipText() {
+  const bu = getVisitFormBusinessUnit();
+  const grid = document.getElementById(bu === 'SAX' ? 'chip-grid-sax' : 'chip-grid');
+  const on = grid && grid.querySelector('.chip-opt.on');
+  return on ? String(on.textContent || '').trim() : '';
 }
 
 function openAdminTab() {
@@ -961,7 +1066,13 @@ async function adminCreateSeller() {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + session.access_token,
       },
-      body: JSON.stringify({ email, password, full_name, phone }),
+      body: JSON.stringify({
+        email,
+        password,
+        full_name,
+        phone,
+        business_unit: (document.getElementById('adm-bu') && document.getElementById('adm-bu').value) === 'SAX' ? 'SAX' : 'PAP',
+      }),
     });
     const j = await res.json().catch(function () {
       return {};
@@ -974,7 +1085,7 @@ async function adminCreateSeller() {
     }
     if (msg) msg.textContent = 'Vendedor criado: ' + (j.email || email);
     toast('✓ Vendedor criado', true);
-    ['adm-nome', 'adm-tel', 'adm-email', 'adm-pass'].forEach(function (id) {
+    ['adm-nome', 'adm-tel', 'adm-email', 'adm-pass', 'adm-bu'].forEach(function (id) {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1122,6 +1233,7 @@ let pinIdx = null;
 let lemPickId = null;
 let cadStep = 1;
 let currSeg = 'peq';
+let currSegSax = 'peq';
 let currChip = null;
 
 /** Evita duplo envio (duplo toque) em cadastro / lembrete / visita. */
@@ -1564,6 +1676,7 @@ function renderHistSummaryRow(entry, i) {
   const cls = { conv: 'vconv', nao: 'vnao', reag: 'vreag', aus: 'vreag' };
   if (entry.kind === 'visit') {
     const v = entry.visit;
+    const teamExtra = v.businessUnit === 'SAX' ? ' · SAX' : '';
     return (
       '<div class="vc hist-item" data-i="' +
       i +
@@ -1573,7 +1686,9 @@ function renderHistSummaryRow(entry, i) {
       (cls[v.res] || 'vreag') +
       '">' +
       escapeHtml(lbl[v.res] || v.res || '') +
-      '</div></div><div class="vrep">📋 Visita · 👤 ' +
+      '</div></div><div class="vrep">📋 Visita' +
+      teamExtra +
+      ' · 👤 ' +
       escapeHtml(v.rep || '') +
       '</div>' +
       (v.obs ? '<div class="vobs">' + escapeHtml(v.obs) + '</div>' : '') +
@@ -1607,10 +1722,14 @@ function openHistDetailFromIndex(i) {
     const v = it.visit;
     tit.textContent = 'Visita';
     const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
+    const teamLbl = v.businessUnit === 'SAX' ? 'SAX' : 'PAP';
     body.innerHTML =
       clienteLine +
       '<div class="hd-block"><span class="hdl">Data</span><span class="hdv">' +
       escapeHtml(v.data || '—') +
+      '</span></div>' +
+      '<div class="hd-block"><span class="hdl">Business unit</span><span class="hdv">' +
+      escapeHtml(teamLbl) +
       '</span></div>' +
       '<div class="hd-block"><span class="hdl">Resultado</span><span class="hdv">' +
       escapeHtml(lbl[v.res] || v.res || '—') +
@@ -3236,6 +3355,17 @@ function openVis() {
   document.getElementById('vformbody').style.display = '';
   document.getElementById('visfoo').style.display = '';
   document.getElementById('ov-vis').classList.add('on');
+  const adminWrap = document.getElementById('admin-vis-bu-wrap');
+  if (adminWrap) {
+    if (currentProfile && currentProfile.role === 'admin') {
+      ensureAdminVisitBuSession();
+      syncAdminVisitBuSeg();
+      adminWrap.style.display = '';
+    } else {
+      adminWrap.style.display = 'none';
+    }
+  }
+  applyVisitFormMode();
 
   setTimeout(() => {
     const vc = document.getElementById('v-cel');
@@ -3244,6 +3374,7 @@ function openVis() {
     if (vn) vn.value = '';
     document.getElementById('v-obs').value = '';
     selSeg('peq');
+    selSegSax('peq');
     document.querySelectorAll('.chip-opt').forEach((c) => c.classList.remove('on'));
     currChip = null;
     document.querySelectorAll('.status-card').forEach((c) => c.classList.remove('on'));
@@ -3257,8 +3388,21 @@ function selSeg(s) {
   document.getElementById('seg-gra').className = 'seg-opt' + (s === 'gra' ? ' on' : '');
 }
 
+function selSegSax(s) {
+  currSegSax = s;
+  const peq = document.getElementById('seg-sax-peq');
+  const gra = document.getElementById('seg-sax-gra');
+  if (peq) peq.className = 'seg-opt' + (s === 'peq' ? ' on' : '');
+  if (gra) gra.className = 'seg-opt' + (s === 'gra' ? ' on' : '');
+}
+
 function selChip(el) {
-  document.querySelectorAll('.chip-opt').forEach((c) => c.classList.remove('on'));
+  const grid = el.closest('.chip-grid');
+  if (grid) {
+    grid.querySelectorAll('.chip-opt').forEach((c) => c.classList.remove('on'));
+  } else {
+    document.querySelectorAll('.chip-opt').forEach((c) => c.classList.remove('on'));
+  }
   el.classList.add('on');
   currChip = el.textContent;
 }
@@ -3267,7 +3411,25 @@ function togSC(id) {
   document.getElementById(id).classList.toggle('on');
 }
 
+function togSCSax(id) {
+  ['sc-sax-op', 'sc-sax-reag', 'sc-sax-aus'].forEach(function (tid) {
+    const el = document.getElementById(tid);
+    if (el) el.classList.toggle('on', tid === id);
+  });
+}
+
 function visitResultFromCards() {
+  if (getVisitFormBusinessUnit() === 'SAX') {
+    const op = document.getElementById('sc-sax-op').classList.contains('on');
+    const reag = document.getElementById('sc-sax-reag').classList.contains('on');
+    const aus = document.getElementById('sc-sax-aus').classList.contains('on');
+    const n = [op, reag, aus].filter(Boolean).length;
+    if (n !== 1) return null;
+    if (op) return 'conv';
+    if (reag) return 'reag';
+    if (aus) return 'aus';
+    return null;
+  }
   const aus = document.getElementById('sc-ausente').classList.contains('on');
   const promo = document.getElementById('sc-promo').classList.contains('on');
   if (aus && promo) return 'aus';
@@ -3305,7 +3467,7 @@ async function subVis() {
 
   const currRes = visitResultFromCards();
   if (!currRes) {
-    toast('⚠️ Selecione o status da visita');
+    toast(getVisitFormBusinessUnit() === 'SAX' ? '⚠️ Selecione o resultado da visita (SAX)' : '⚠️ Selecione o status da visita');
     return;
   }
 
@@ -3330,6 +3492,7 @@ async function subVis() {
     }
     const repName = sellerRepDisplayName(user);
 
+    const bu = getVisitFormBusinessUnit();
     const visitPayload = {
       data: dataStr,
       res: currRes,
@@ -3337,8 +3500,9 @@ async function subVis() {
       obs,
       celComprador: document.getElementById('v-cel').value.trim(),
       nomeComprador: nome,
-      tamEstab: currSeg === 'peq' ? 'Pequeno' : 'Grande',
-      tipoEstabChip: currChip || '',
+      tamEstab: getTamEstabFromForm(),
+      tipoEstabChip: getActiveChipText(),
+      businessUnit: bu,
       created_at_ts: Date.now(),
     };
 
@@ -3356,6 +3520,7 @@ async function subVis() {
         nome_comprador: nome,
         tam_estab: visitPayload.tamEstab,
         tipo_estab_chip: visitPayload.tipoEstabChip,
+        business_unit: bu,
       };
       const { error } = await sb.from('visits').insert(row);
       if (error) {

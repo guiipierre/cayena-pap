@@ -177,6 +177,12 @@
         <p class="admin-lead">Crie o acesso do vendedor (e-mail e senha). O time interno promove administradores no Supabase.</p>
         <div class="fg"><div class="flbl">Nome do vendedor</div><input class="fi" id="adm-nome" type="text" autocomplete="name" placeholder="Nome completo"></div>
         <div class="fg"><div class="flbl">Telefone</div><input class="fi" id="adm-tel" type="tel" autocomplete="tel" placeholder="(11) 99999-9999"></div>
+        <div class="fg"><div class="flbl">Business unit <span class="req">*</span></div>
+          <select class="fi" id="adm-bu" style="height:52px" aria-label="Business unit do vendedor">
+            <option value="PAP">PAP — porta a porta</option>
+            <option value="SAX">SAX</option>
+          </select>
+        </div>
         <div class="fg"><div class="flbl">E-mail <span class="req">*</span></div><input class="fi" id="adm-email" type="email" autocomplete="off" placeholder="vendedor@empresa.com"></div>
         <div class="fg"><div class="flbl">Senha inicial <span class="req">*</span></div><input class="fi" id="adm-pass" type="password" autocomplete="new-password" placeholder="Mínimo 6 caracteres"></div>
         <button type="button" class="btnp" style="width:100%;margin-top:10px" onclick="adminCreateSeller()">Criar vendedor</button>
@@ -410,8 +416,15 @@
 <div class="ov" id="ov-vis" onclick="if(event.target.id==='ov-vis')closeOv('ov-vis')">
   <div class="sheet">
     <div class="shandle"></div>
-    <div class="shdr"><div class="stit">Registrar Visita</div><div class="scls" onclick="closeOv('ov-vis')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
+    <div class="shdr"><div class="stit" id="vis-sheet-title">Registrar visita</div><div class="scls" onclick="closeOv('ov-vis')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div>
     <div class="slbl" style="padding-top:2px">Cliente: <b id="vclinome" style="color:var(--cravo)"></b></div>
+    <div class="fg admin-vis-bu-row" id="admin-vis-bu-wrap" style="display:none;padding:0 16px 8px;margin:0">
+      <div class="flbl">Formulário (admin)</div>
+      <div class="seg-ctrl">
+        <div class="seg-opt on" id="admin-bu-pap" onclick="setAdminVisitBu('PAP')">PAP</div>
+        <div class="seg-opt" id="admin-bu-sax" onclick="setAdminVisitBu('SAX')">SAX</div>
+      </div>
+    </div>
     <div class="suc" id="vissuc"><div class="sucico">📋</div><div class="suctit">Visita registrada!</div><div class="sucsub">Salva no histórico do cliente.</div></div>
     <div class="vform" id="vformbody">
       <div class="fg">
@@ -430,44 +443,93 @@
         </div>
         <div class="err-msg" id="err-nome">Campo obrigatório</div>
       </div>
-      <div>
-        <div class="vsec-title">Estabelecimento</div>
-        <div class="vsec-line"></div>
-        <div class="fg" style="margin-bottom:16px">
-          <div class="flbl">Tamanho</div>
-          <div class="seg-ctrl">
-            <div class="seg-opt on" id="seg-peq" onclick="selSeg('peq')">🏪 Pequeno</div>
-            <div class="seg-opt" id="seg-gra" onclick="selSeg('gra')">🏬 Grande</div>
+      <div id="vform-papo-section">
+        <div>
+          <div class="vsec-title">Estabelecimento</div>
+          <div class="vsec-line"></div>
+          <div class="fg" style="margin-bottom:16px">
+            <div class="flbl">Tamanho</div>
+            <div class="seg-ctrl">
+              <div class="seg-opt on" id="seg-peq" onclick="selSeg('peq')">🏪 Pequeno</div>
+              <div class="seg-opt" id="seg-gra" onclick="selSeg('gra')">🏬 Grande</div>
+            </div>
+          </div>
+          <div class="fg">
+            <div class="flbl">Tipo de Estabelecimento</div>
+            <div class="chip-grid" id="chip-grid">
+              <div class="chip-opt" onclick="selChip(this)">PF/Kilo</div>
+              <div class="chip-opt" onclick="selChip(this)">Pizza/Esfirra</div>
+              <div class="chip-opt" onclick="selChip(this)">Lanche</div>
+              <div class="chip-opt" onclick="selChip(this)">Salgados</div>
+              <div class="chip-opt" onclick="selChip(this)">Padaria</div>
+              <div class="chip-opt" onclick="selChip(this)">Bar</div>
+              <div class="chip-opt" onclick="selChip(this)">Churrasco</div>
+              <div class="chip-opt" onclick="selChip(this)">Japonês</div>
+              <div class="chip-opt" onclick="selChip(this)">Outros</div>
+            </div>
           </div>
         </div>
-        <div class="fg">
-          <div class="flbl">Tipo de Estabelecimento</div>
-          <div class="chip-grid" id="chip-grid">
-            <div class="chip-opt" onclick="selChip(this)">PF/Kilo</div>
-            <div class="chip-opt" onclick="selChip(this)">Pizza/Esfirra</div>
-            <div class="chip-opt" onclick="selChip(this)">Lanche</div>
-            <div class="chip-opt" onclick="selChip(this)">Salgados</div>
-            <div class="chip-opt" onclick="selChip(this)">Padaria</div>
-            <div class="chip-opt" onclick="selChip(this)">Bar</div>
-            <div class="chip-opt" onclick="selChip(this)">Churrasco</div>
-            <div class="chip-opt" onclick="selChip(this)">Japonês</div>
-            <div class="chip-opt" onclick="selChip(this)">Outros</div>
+        <div>
+          <div class="vsec-title">Status da visita</div>
+          <div class="vsec-line"></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="status-card" id="sc-promo" onclick="togSC('sc-promo')">
+              <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
+              <div class="sc-body"><div class="sc-label">Enviar promoções</div><div class="sc-sub">Adicionar ao grupo de promos</div></div>
+              <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
+            <div class="status-card" id="sc-ausente" onclick="togSC('sc-ausente')">
+              <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+              <div class="sc-body"><div class="sc-label">Comprador não estava</div><div class="sc-sub">Nenhum contato realizado</div></div>
+              <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
           </div>
         </div>
       </div>
-      <div>
-        <div class="vsec-title">Status da Visita</div>
-        <div class="vsec-line"></div>
-        <div style="display:flex;flex-direction:column;gap:10px">
-          <div class="status-card" id="sc-promo" onclick="togSC('sc-promo')">
-            <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div>
-            <div class="sc-body"><div class="sc-label">Enviar promoções</div><div class="sc-sub">Adicionar ao grupo de promos</div></div>
-            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <div id="vform-sax-section" style="display:none">
+        <div>
+          <div class="vsec-title">Conta SAX</div>
+          <div class="vsec-line"></div>
+          <div class="fg" style="margin-bottom:16px">
+            <div class="flbl">Porte da operação</div>
+            <div class="seg-ctrl">
+              <div class="seg-opt on" id="seg-sax-peq" onclick="selSegSax('peq')">🏪 Pequeno</div>
+              <div class="seg-opt" id="seg-sax-gra" onclick="selSegSax('gra')">🏬 Grande</div>
+            </div>
           </div>
-          <div class="status-card" id="sc-ausente" onclick="togSC('sc-ausente')">
-            <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
-            <div class="sc-body"><div class="sc-label">Comprador não estava</div><div class="sc-sub">Nenhum contato realizado</div></div>
-            <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="fg">
+            <div class="flbl">Canal / segmento</div>
+            <div class="chip-grid" id="chip-grid-sax">
+              <div class="chip-opt" onclick="selChip(this)">Atacado</div>
+              <div class="chip-opt" onclick="selChip(this)">Distribuidor</div>
+              <div class="chip-opt" onclick="selChip(this)">Food service</div>
+              <div class="chip-opt" onclick="selChip(this)">Varejo</div>
+              <div class="chip-opt" onclick="selChip(this)">Indústria</div>
+              <div class="chip-opt" onclick="selChip(this)">Rede nacional</div>
+              <div class="chip-opt" onclick="selChip(this)">Cooperativa</div>
+              <div class="chip-opt" onclick="selChip(this)">Outros</div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="vsec-title">Resultado da visita (SAX)</div>
+          <div class="vsec-line"></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="status-card" id="sc-sax-op" onclick="togSCSax('sc-sax-op')">
+              <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="sc-body"><div class="sc-label">Oportunidade / negócio</div><div class="sc-sub">Pedido, avanço comercial ou conversão</div></div>
+              <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
+            <div class="status-card" id="sc-sax-reag" onclick="togSCSax('sc-sax-reag')">
+              <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+              <div class="sc-body"><div class="sc-label">Próximo passo agendado</div><div class="sc-sub">Follow-up, reunião ou retorno combinado</div></div>
+              <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
+            <div class="status-card" id="sc-sax-aus" onclick="togSCSax('sc-sax-aus')">
+              <div class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
+              <div class="sc-body"><div class="sc-label">Sem contato com decisor</div><div class="sc-sub">Conta visitada sem alinhamento com decisor</div></div>
+              <div class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
           </div>
         </div>
       </div>
@@ -496,6 +558,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=26" defer></script>
+<script src="pap-app.js?v=30" defer></script>
 </body>
 </html>

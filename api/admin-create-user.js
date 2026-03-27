@@ -72,6 +72,7 @@ module.exports = async function handler(req, res) {
   const password = body && body.password != null ? String(body.password) : '';
   const full_name = body && body.full_name ? String(body.full_name).trim() : '';
   const phone = body && body.phone ? String(body.phone).trim() : '';
+  const business_unit = body && body.business_unit === 'SAX' ? 'SAX' : 'PAP';
 
   if (!email || !password) {
     return res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
@@ -92,7 +93,7 @@ module.exports = async function handler(req, res) {
   }
 
   const uid = created.user.id;
-  const updates = { role: 'seller' };
+  const updates = { role: 'seller', business_unit };
   if (full_name) updates.full_name = full_name;
   if (phone) updates.phone = phone;
   await adminSb.from('profiles').update(updates).eq('id', uid);

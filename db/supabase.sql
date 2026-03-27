@@ -5,12 +5,20 @@
 -- Depois: Authentication → Providers → Email (habilitar email/senha)
 -- =============================================================================
 
+-- Enum fixo PAP | SAX (lista no banco, não texto livre)
+DO $$ BEGIN
+  CREATE TYPE public.business_unit_enum AS ENUM ('PAP', 'SAX');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 -- Perfil ligado ao usuário do Auth (auth.users é gerido pelo Supabase)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
   full_name TEXT,
   phone TEXT,
   role TEXT NOT NULL DEFAULT 'seller' CHECK (role IN ('seller', 'admin')),
+  business_unit public.business_unit_enum,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -75,6 +83,7 @@ CREATE TABLE IF NOT EXISTS public.visits (
   nome_comprador TEXT,
   tam_estab TEXT,
   tipo_estab_chip TEXT,
+  business_unit public.business_unit_enum NOT NULL DEFAULT 'PAP'::public.business_unit_enum,
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
