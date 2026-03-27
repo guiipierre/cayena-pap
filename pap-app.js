@@ -1315,8 +1315,7 @@ async function refreshMyRoutesFromServer(opts) {
 /**
  * Ao rolar até o fim da lista na aba História, sincroniza com o servidor (sem precisar F5).
  * Usa o evento scroll (mais confiável que IntersectionObserver em alguns navegadores).
- */
-/**
+ *
  * @param {HTMLElement} scrollEl
  * @param {() => void} [scrollEndRefreshFn] — se omitido, usa História ou Rotas conforme o id (legado).
  */
@@ -1351,9 +1350,9 @@ function initHistScrollEndRefresh(scrollEl, scrollEndRefreshFn) {
 const PTR_THRESHOLD = 72;
 
 /**
- * @param {HTMLElement} scrollEl — alvo principal (compat); com `opts.scrollTargets`, ouve todos.
+ * @param {HTMLElement | null} scrollEl — alvo principal (compat); com `opts.scrollTargets`, ouve todos.
  * @param {() => void | Promise<void>} onRefreshAsync
- * @param {{ scrollTargets?: HTMLElement[]; fixedBottomHint?: boolean; hintContainer?: HTMLElement }} [opts]
+ * @param {{ scrollTargets?: HTMLElement[]; getScrollEl?: () => HTMLElement | null; fixedBottomHint?: boolean; hintContainer?: HTMLElement }} [opts]
  */
 function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
   opts = opts || {};
@@ -1363,6 +1362,8 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
   const marker = targets[0];
   if (marker._ptrInit) return;
   marker._ptrInit = true;
+
+  const getScrollEl = typeof opts.getScrollEl === 'function' ? opts.getScrollEl : null;
 
   const fixedBottom = opts.fixedBottomHint === true;
   const hintContainer =
@@ -1389,8 +1390,16 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
     targets[0].insertBefore(ind, targets[0].firstChild);
   }
 
+  function resolveScrollEl(el) {
+    if (getScrollEl) {
+      var sc = getScrollEl();
+      if (sc) return sc;
+    }
+    return el || targets[0];
+  }
+
   function beginPull(clientY, el) {
-    activeScrollEl = el || targets[0];
+    activeScrollEl = resolveScrollEl(el);
     startY = clientY;
     startTop = activeScrollEl.scrollTop;
     tracking = startTop <= 2;
@@ -1399,6 +1408,10 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
 
   function movePull(clientY) {
     if (!tracking) return;
+    if (getScrollEl) {
+      var sc = getScrollEl();
+      if (sc) activeScrollEl = sc;
+    }
     if (activeScrollEl.scrollTop > 2) {
       tracking = false;
       ind.classList.remove('ptr-visible', 'ptr-ready');
@@ -1417,7 +1430,8 @@ function initPullToRefresh(scrollEl, onRefreshAsync, opts) {
   function endPull() {
     if (!tracking) return;
     tracking = false;
-    const fire = pullAccum >= PTR_THRESHOLD && activeScrollEl.scrollTop <= 2;
+    var scEnd = getScrollEl ? getScrollEl() || activeScrollEl : activeScrollEl;
+    const fire = pullAccum >= PTR_THRESHOLD && scEnd.scrollTop <= 2;
     ind.classList.remove('ptr-visible', 'ptr-ready');
     pullAccum = 0;
     if (!fire) return;
@@ -3548,10 +3562,20 @@ document.addEventListener('DOMContentLoaded', function () {
   initPullToRefresh(document.getElementById('p-hist'), refreshHistoriaFromServer);
   initHistScrollEndRefresh(document.getElementById('scr-hist'));
   initHistScrollEndRefresh(document.getElementById('p-hist'));
+  var myRoutesListView = document.getElementById('my-routes-list-view');
+  var myRoutesDetailView = document.getElementById('my-routes-detail-view');
   var myRoutesListScroll = document.getElementById('my-routes-scroll-list');
   var myRoutesDetailScroll = document.getElementById('my-routes-scroll-detail');
-  initPullToRefresh(myRoutesListScroll, refreshMyRoutesFromServer, {
-    scrollTargets: [myRoutesListScroll, myRoutesDetailScroll].filter(Boolean),
+  function getMyRoutesActiveScrollEl() {
+    var detail = document.getElementById('my-routes-detail-view');
+    if (detail && detail.style.display !== 'none') {
+      return document.getElementById('my-routes-scroll-detail');
+    }
+    return document.getElementById('my-routes-scroll-list');
+  }
+  initPullToRefresh(myRoutesListView, refreshMyRoutesFromServer, {
+    scrollTargets: [myRoutesListView, myRoutesDetailView].filter(Boolean),
+    getScrollEl: getMyRoutesActiveScrollEl,
     fixedBottomHint: true,
     hintContainer: document.getElementById('scr-my-routes'),
   });
