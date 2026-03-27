@@ -1282,6 +1282,37 @@ async function refreshHistoriaFromServer(opts) {
 }
 
 /**
+ * Atualiza dados da nuvem e a lista de rotas (pull-to-refresh / fim do scroll), no mesmo espírito da História.
+ * @param {{ silentToast?: boolean }} [opts]
+ */
+async function refreshMyRoutesFromServer(opts) {
+  opts = opts || {};
+  const silentToast = opts.silentToast === true;
+  if (sessionStorage.getItem('cayena_offline') === '1') {
+    toast('Conecte-se à conta para atualizar os dados');
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb) {
+    toast('Supabase não configurado');
+    return;
+  }
+  const ok = await loadClientsFromSupabase({ silent: true });
+  if (!ok) {
+    toast('Não foi possível atualizar');
+    return;
+  }
+  const detailEl = document.getElementById('my-routes-detail-view');
+  const rid = myRoutesDetailRouteId;
+  const onDetail = detailEl && detailEl.style.display !== 'none' && rid;
+  await loadMyRoutesList();
+  if (onDetail) {
+    await openMyRouteDetail(rid);
+  }
+  if (!silentToast) toast('✓ Rotas atualizadas', true);
+}
+
+/**
  * Ao rolar até o fim da lista na aba História, sincroniza com o servidor (sem precisar F5).
  * Usa o evento scroll (mais confiável que IntersectionObserver em alguns navegadores).
  */
@@ -1301,7 +1332,11 @@ function initHistScrollEndRefresh(scrollEl) {
       var now = Date.now();
       if (now - lastAt < COOLDOWN_MS) return;
       lastAt = now;
-      refreshHistoriaFromServer({ silentToast: true });
+      if (scrollEl.id === 'scr-my-routes') {
+        refreshMyRoutesFromServer({ silentToast: true });
+      } else {
+        refreshHistoriaFromServer({ silentToast: true });
+      }
     },
     { passive: true }
   );
@@ -3480,5 +3515,7 @@ document.addEventListener('DOMContentLoaded', function () {
   initPullToRefresh(document.getElementById('p-hist'), refreshHistoriaFromServer);
   initHistScrollEndRefresh(document.getElementById('scr-hist'));
   initHistScrollEndRefresh(document.getElementById('p-hist'));
+  initPullToRefresh(document.getElementById('scr-my-routes'), refreshMyRoutesFromServer);
+  initHistScrollEndRefresh(document.getElementById('scr-my-routes'));
   bootstrapAuth();
 });
