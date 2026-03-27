@@ -60,10 +60,7 @@ body.auth-screen-open{overflow:hidden!important}
 .route-hub-row-date{font-size:12px;color:var(--cardamomo);flex-shrink:0}
 .route-hub-new-btn{width:100%;min-height:52px;font-size:15px;font-weight:700;margin-top:4px}
 .route-hub-empty{font-size:13px;color:var(--cardamomo);text-align:center;padding:12px 8px;margin:8px 0}
-.route-plan-header{display:flex;align-items:center;gap:12px;padding:14px 16px 10px;flex-shrink:0;border-bottom:1px solid var(--zimbro);background:var(--cream)}
-.route-plan-back{width:48px;height:48px;border-radius:14px;background:var(--white);border:1.5px solid var(--gergelim);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:var(--sh);transition:transform .12s,background .12s;touch-action:manipulation}
-.route-plan-back:active{transform:scale(.96);background:var(--zimbro)}
-.route-plan-back svg{color:var(--cravo)}
+.route-plan-wrap > .dhdr.route-plan-dhdr{height:auto;min-height:var(--hdr);padding:10px 16px}
 .route-plan-head-text{flex:1;min-width:0}
 .route-plan-kicker{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--cardamomo);margin-bottom:2px}
 .route-plan-title{font-size:18px;font-weight:800;color:var(--cravo);line-height:1.2;margin:0}
@@ -475,7 +472,6 @@ textarea.fi{height:80px;resize:none;padding-top:14px;padding-bottom:14px;display
 .admin-wrap{padding:22px 20px 0;position:relative;max-width:430px;margin:0 auto}
 .admin-wrap .backbtn{position:absolute;top:18px;left:20px}
 .admin-wrap .hist-title{padding-left:48px;padding-right:16px}
-.admin-lead{font-size:13px;color:var(--cardamomo);line-height:1.45;margin-bottom:16px}
 .admin-foot{font-size:12px;color:var(--cardamomo);margin-top:14px;line-height:1.4}
 
 .hist-wrap{padding:22px 20px 0}
