@@ -6,7 +6,7 @@
 <title>cayena PAP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=35">
+<link rel="stylesheet" href="styles.css?v=37">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 </head>
 <body>
@@ -372,7 +372,7 @@
         <button type="button" class="more-item more-item--ico" id="more-route-plan" onclick="closeOv('ov-more');openRoutePlannerTab()"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="more-item-text">Planejar rotas (mapa)</span></button>
       </div>
       <div class="more-card">
-        <button type="button" class="more-item more-item--ico" onclick="closeOv('ov-more');toast('Em breve')"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="more-item-text">Notificações</span></button>
+        <button type="button" class="more-item more-item--ico" onclick="openNotificationsPanel()"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span class="more-item-text">Notificações</span><span class="more-notif-badge" id="more-notif-badge" style="display:none" aria-hidden="true">0</span></button>
       </div>
       <p class="more-group-title" id="more-title-conta">Conta</p>
       <div class="more-card" id="more-card-conta" style="display:none">
@@ -384,6 +384,27 @@
         <button type="button" class="more-item more-item--ico" onclick="closeOv('ov-more');toast('Em breve')"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span><span class="more-item-text">Outras preferências</span></button>
       </div>
       <button type="button" class="more-item more-item--ico more-item--danger" id="more-logout" style="display:none" onclick="closeOv('ov-more');openLogoutConfirm()"><span class="more-ico more-ico--danger" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span><span class="more-item-text">Sair da conta</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov-notifications" aria-hidden="true" onclick="if(event.target.id==='ov-notifications')closeOv('ov-notifications')">
+  <div class="sheet sheet-notifications" onclick="event.stopPropagation()">
+    <div class="shandle"></div>
+    <div class="shdr">
+      <div class="stit">Notificações</div>
+      <div class="scls" onclick="closeOv('ov-notifications')" role="button" tabindex="0" aria-label="Fechar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>
+    </div>
+    <div class="notif-scroll">
+      <p class="notif-lead">Tudo ligado aos <strong>lembretes</strong> agendados: aviso no <strong>dia anterior às 9h</strong> e outro <strong>1h antes</strong> do horário marcado. Funciona com o app aberto; para alertas com o celular bloqueado, use o botão abaixo.</p>
+      <div class="notif-perm-row" id="notif-perm-row">
+        <button type="button" class="btnp notif-perm-btn" id="notif-perm-btn" onclick="requestReminderNotificationPermission()">Ativar alertas neste aparelho</button>
+        <p class="notif-perm-status" id="notif-perm-status" role="status"></p>
+      </div>
+      <div class="notif-section-title">Próximos lembretes</div>
+      <div id="notif-list-body" class="notif-list-body"></div>
     </div>
   </div>
 </div>
@@ -635,6 +656,6 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=35" defer></script>
+<script src="pap-app.js?v=37" defer></script>
 </body>
 </html>

@@ -595,6 +595,7 @@ async function mergeEstablishmentIntoDb(sb, establishmentId) {
     renderCliList([...DB]);
   }
   refreshOpenClientPickers();
+  onClientsLoaded();
 }
 
 /** @returns {Promise<boolean>} true se a lista foi carregada com sucesso */
@@ -630,6 +631,7 @@ async function loadClientsFromSupabase(opts) {
     }
     refreshOpenClientPickers();
     await loadMyProfile();
+    onClientsLoaded();
     return true;
   }
 
@@ -657,6 +659,7 @@ async function loadClientsFromSupabase(opts) {
   }
   refreshOpenClientPickers();
   await loadMyProfile();
+  onClientsLoaded();
   return true;
 }
 
@@ -3190,13 +3193,212 @@ function closeCad() {
 }
 
 function closeOv(id) {
-  document.getElementById(id).classList.remove('on');
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('on');
+  if (id === 'ov-notifications') el.setAttribute('aria-hidden', 'true');
 }
 
 function escapeHtml(s) {
   const d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+
+/** Janela após o horário-alvo (10 min) para o scheduler de 60s não perder o disparo. */
+var REMINDER_NOTIF_WINDOW_MS = 10 * 60 * 1000;
+var reminderNotifIntervalId = null;
+
+function getDayBeforeNineAmMs(visitMs) {
+  const v = new Date(visitMs);
+  return new Date(v.getFullYear(), v.getMonth(), v.getDate() - 1, 9, 0, 0, 0).getTime();
+}
+
+function reminderNotifStorageKey(kind, id) {
+  return kind === 'day' ? 'cayena_notif_rem_day_' + id : 'cayena_notif_rem_hour_' + id;
+}
+
+function showReminderBrowserNotification(kind, clientNome, reminder) {
+  const sub =
+    reminder.dataStr +
+    ' às ' +
+    reminder.horaStr +
+    (reminder.notes ? ' · ' + reminder.notes : '');
+  const title =
+    kind === 'day' ? 'Lembrete: visita amanhã' : 'Lembrete: visita em 1 hora';
+  const body = clientNome + ' — ' + sub;
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification(title, {
+        body: body,
+        tag: 'cayena-rem-' + String(reminder.id) + '-' + kind,
+      });
+    } catch (e) {
+      console.warn(e);
+      toast('🔔 ' + title + ': ' + clientNome, true);
+    }
+  } else {
+    toast('🔔 ' + title + ': ' + clientNome, true);
+  }
+}
+
+function checkReminderNotifications() {
+  const now = Date.now();
+  (DB || []).forEach(function (c) {
+    (c.lembretes || []).forEach(function (r) {
+      if (r.status !== 'pending') return;
+      const visitMs = r.remind_at_ms;
+      if (!visitMs || visitMs <= now) return;
+
+      const idStr = String(r.id);
+
+      const dayBefore9 = getDayBeforeNineAmMs(visitMs);
+      if (now >= dayBefore9 && now < dayBefore9 + REMINDER_NOTIF_WINDOW_MS) {
+        const keyDay = reminderNotifStorageKey('day', idStr);
+        if (!localStorage.getItem(keyDay)) {
+          localStorage.setItem(keyDay, '1');
+          showReminderBrowserNotification('day', c.nome, r);
+        }
+      }
+
+      const oneHourBefore = visitMs - 60 * 60 * 1000;
+      if (now >= oneHourBefore && now < oneHourBefore + REMINDER_NOTIF_WINDOW_MS) {
+        const keyHour = reminderNotifStorageKey('hour', idStr);
+        if (!localStorage.getItem(keyHour)) {
+          localStorage.setItem(keyHour, '1');
+          showReminderBrowserNotification('hour', c.nome, r);
+        }
+      }
+    });
+  });
+}
+
+function countUpcomingRemindersSoon() {
+  const now = Date.now();
+  const week = now + 7 * 24 * 60 * 60 * 1000;
+  let n = 0;
+  (DB || []).forEach(function (c) {
+    (c.lembretes || []).forEach(function (r) {
+      if (r.status !== 'pending') return;
+      const t = r.remind_at_ms;
+      if (!t || t <= now) return;
+      if (t <= week) n += 1;
+    });
+  });
+  return n;
+}
+
+function updateNotificationBadge() {
+  const el = document.getElementById('more-notif-badge');
+  if (!el) return;
+  const n = countUpcomingRemindersSoon();
+  if (n > 0) {
+    el.textContent = n > 99 ? '99+' : String(n);
+    el.style.display = '';
+    el.setAttribute('aria-hidden', 'false');
+  } else {
+    el.style.display = 'none';
+    el.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function startReminderNotificationScheduler() {
+  if (reminderNotifIntervalId != null) return;
+  reminderNotifIntervalId = setInterval(function () {
+    checkReminderNotifications();
+    updateNotificationBadge();
+  }, 60000);
+  checkReminderNotifications();
+  updateNotificationBadge();
+}
+
+function onClientsLoaded() {
+  startReminderNotificationScheduler();
+  updateNotificationBadge();
+  checkReminderNotifications();
+}
+
+function renderNotificationsPanel() {
+  const body = document.getElementById('notif-list-body');
+  const statusEl = document.getElementById('notif-perm-status');
+  const btn = document.getElementById('notif-perm-btn');
+  if (typeof Notification === 'undefined') {
+    if (statusEl) statusEl.textContent = 'Este navegador não suporta notificações no sistema.';
+    if (btn) btn.style.display = 'none';
+  } else {
+    if (btn) btn.style.display = '';
+    if (statusEl) {
+      if (Notification.permission === 'granted') {
+        statusEl.textContent = 'Alertas do sistema ativados.';
+      } else if (Notification.permission === 'denied') {
+        statusEl.textContent =
+          'Notificações bloqueadas. Ative nas configurações do navegador.';
+      } else {
+        statusEl.textContent = 'Toque no botão para pedir permissão (recomendado).';
+      }
+    }
+  }
+
+  if (!body) return;
+  const now = Date.now();
+  const rows = [];
+  (DB || []).forEach(function (c) {
+    (c.lembretes || []).forEach(function (r) {
+      if (r.status !== 'pending') return;
+      if (!r.remind_at_ms || r.remind_at_ms <= now) return;
+      rows.push({ client: c, reminder: r });
+    });
+  });
+  rows.sort(function (a, b) {
+    return a.reminder.remind_at_ms - b.reminder.remind_at_ms;
+  });
+  if (!rows.length) {
+    body.innerHTML =
+      '<div class="notif-empty">Nenhum lembrete futuro. Crie um pelo botão + → Novo lembrete.</div>';
+    return;
+  }
+  body.innerHTML = rows
+    .map(function (row) {
+      const c = row.client;
+      const r = row.reminder;
+      return (
+        '<div class="notif-card">' +
+        '<div class="notif-card-title">' +
+        escapeHtml(c.nome) +
+        '</div>' +
+        '<div class="notif-card-meta">' +
+        escapeHtml(r.dataStr + ' às ' + r.horaStr) +
+        '</div>' +
+        (r.notes
+          ? '<div class="notif-card-notes">' + escapeHtml(r.notes) + '</div>'
+          : '') +
+        '</div>'
+      );
+    })
+    .join('');
+}
+
+function openNotificationsPanel() {
+  closeOv('ov-more');
+  renderNotificationsPanel();
+  const ov = document.getElementById('ov-notifications');
+  if (ov) {
+    ov.classList.add('on');
+    ov.setAttribute('aria-hidden', 'false');
+  }
+}
+
+async function requestReminderNotificationPermission() {
+  if (typeof Notification === 'undefined') return;
+  try {
+    const p = await Notification.requestPermission();
+    renderNotificationsPanel();
+    if (p === 'granted') {
+      toast('✓ Notificações ativadas', true);
+    }
+  } catch (e) {
+    console.warn(e);
+  }
 }
 
 function openFabMenu() {
@@ -3403,6 +3605,7 @@ async function subLembrete() {
         document.getElementById('scr-hist') &&
         document.getElementById('scr-hist').classList.contains('on');
       if (onHist) renderGlobalHist();
+      onClientsLoaded();
     }
 
     toast('✓ Lembrete: ' + c.nome + ' — ' + d + ' às ' + t + (obs ? ' · ' + obs : ''), true);
@@ -4105,6 +4308,7 @@ function maybeRefreshGlobalHistIfVisible() {
 
 function toggleMore() {
   document.getElementById('ov-more').classList.add('on');
+  updateNotificationBadge();
 }
 
 document.getElementById('c-cnpj').addEventListener('input', (e) => {
@@ -4167,6 +4371,12 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   initHistScrollEndRefresh(myRoutesDetailScroll, function () {
     refreshMyRoutesFromServer({ silentToast: true });
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') {
+      checkReminderNotifications();
+      updateNotificationBadge();
+    }
   });
   bootstrapAuth();
 });
