@@ -1847,44 +1847,82 @@ function buildGlobalTimelineEntries() {
 function renderHistSummaryRow(entry, i) {
   const lbl = { conv: 'Convertido', nao: 'Não convertido', reag: 'Reagendado', aus: 'Ausente' };
   const cls = { conv: 'vconv', nao: 'vnao', reag: 'vreag', aus: 'vreag' };
+  const cliHead = entry.clienteNome
+    ? '<div class="hist-cli-name">' + escapeHtml(entry.clienteNome) + '</div>'
+    : '';
+
   if (entry.kind === 'visit') {
     const v = entry.visit;
-    const teamExtra = v.businessUnit === 'SAX' ? ' · SAX' : '';
+    const bu = v.businessUnit === 'SAX' ? 'SAX' : 'PAP';
     const saxHint =
       v.businessUnit === 'SAX' && v.saxSold
         ? v.saxSold === 'sim'
-          ? ' · Venda: sim'
-          : ' · Venda: não'
+          ? 'Venda: sim'
+          : 'Venda: não'
         : '';
+    const rawObs = v.obs ? String(v.obs).trim() : '';
+    const obsHtml =
+      rawObs.length > 120
+        ? escapeHtml(rawObs.slice(0, 120)) + '…'
+        : escapeHtml(rawObs);
     return (
-      '<div class="vc hist-item" data-i="' +
+      '<div class="vc hist-item hist-card hist-card--visit" data-i="' +
       i +
-      '" role="button" tabindex="0"><div class="vtop"><div class="vdate">' +
-      escapeHtml(v.data) +
-      '</div><div class="vres ' +
+      '" role="button" tabindex="0">' +
+      cliHead +
+      '<div class="hist-card-row">' +
+      '<div class="hist-card-left">' +
+      '<span class="hist-kind-pill hist-kind-pill--visit">Visita</span>' +
+      '<span class="hist-bu-tag">' +
+      escapeHtml(bu) +
+      '</span>' +
+      '<span class="vres ' +
       (cls[v.res] || 'vreag') +
       '">' +
-      escapeHtml(lbl[v.res] || v.res || '') +
-      '</div></div><div class="vrep">📋 Visita' +
-      teamExtra +
-      saxHint +
-      ' · 👤 ' +
-      escapeHtml(v.rep || '') +
+      escapeHtml(lbl[v.res] || v.res || '—') +
+      '</span>' +
       '</div>' +
-      (v.obs ? '<div class="vobs">' + escapeHtml(v.obs) + '</div>' : '') +
+      '<span class="hist-card-date">' +
+      escapeHtml(v.data) +
+      '</span>' +
+      '</div>' +
+      '<div class="hist-card-meta">' +
+      '<span>👤 ' +
+      escapeHtml(v.rep || '—') +
+      '</span>' +
+      (saxHint
+        ? '<span class="hist-meta-sep" aria-hidden="true">·</span><span>' + escapeHtml(saxHint) + '</span>'
+        : '') +
+      '</div>' +
+      (rawObs ? '<div class="hist-snippet">' + obsHtml + '</div>' : '') +
       '<div class="hist-tap-hint">Toque para ver o formulário completo</div></div>'
     );
   }
   const r = entry.reminder;
+  const rawNotes = r.notes ? String(r.notes).trim() : '';
+  const notesHtml =
+    rawNotes.length > 100
+      ? escapeHtml(rawNotes.slice(0, 100)) + '…'
+      : escapeHtml(rawNotes);
   return (
-    '<div class="vc hist-item hist-rem" data-i="' +
+    '<div class="vc hist-item hist-card hist-card--rem" data-i="' +
     i +
-    '" role="button" tabindex="0"><div class="vtop"><div class="vdate">' +
+    '" role="button" tabindex="0">' +
+    cliHead +
+    '<div class="hist-card-row">' +
+    '<div class="hist-card-left">' +
+    '<span class="hist-kind-pill hist-kind-pill--rem">Lembrete</span>' +
+    '<span class="vres vlem">' +
+    escapeHtml(reminderStatusLabel(r.status)) +
+    '</span>' +
+    '</div>' +
+    '<span class="hist-card-date">' +
     escapeHtml(r.dataStr + ' · ' + r.horaStr) +
-    '</div><div class="vres vlem">🔔 Lembrete</div></div>' +
-    (r.notes
-      ? '<div class="vobs">' + escapeHtml(r.notes.length > 120 ? r.notes.slice(0, 120) + '…' : r.notes) + '</div>'
-      : '<div class="vobs" style="opacity:.75">Sem observações</div>') +
+    '</span>' +
+    '</div>' +
+    (rawNotes
+      ? '<div class="hist-snippet">' + notesHtml + '</div>'
+      : '<div class="hist-snippet hist-snippet--empty">Sem observações</div>') +
     '<div class="hist-tap-hint">Toque para ver data, hora e observações</div></div>'
   );
 }

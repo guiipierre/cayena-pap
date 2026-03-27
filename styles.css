@@ -253,6 +253,20 @@ body.auth-screen-open{overflow:hidden!important}
 .cchip{display:inline-flex;align-items:center;gap:4px;background:var(--zimbro);border:1px solid var(--gergelim);border-radius:999px;padding:3px 9px;font-size:10px;color:var(--cardamomo);font-family:monospace}
 .cchip svg{width:10px;height:10px;color:var(--orange);flex-shrink:0}
 .vc{background:var(--white);border:1px solid var(--gergelim);border-radius:var(--r);padding:14px;margin-bottom:9px}
+.hist-card--visit{border-left:3px solid var(--orange);padding-left:11px}
+.hist-card--rem{border-left:3px solid #7c3aed;padding-left:11px}
+.hist-cli-name{font-size:15px;font-weight:700;color:var(--cravo);line-height:1.25;margin-bottom:10px}
+.hist-card-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+.hist-card-left{display:flex;align-items:center;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
+.hist-card-date{font-size:11px;color:var(--cardamomo);font-weight:600;white-space:nowrap;flex-shrink:0;padding-top:2px;text-align:right}
+.hist-kind-pill{font-size:10px;font-weight:700;padding:4px 8px;border-radius:8px;line-height:1.2}
+.hist-kind-pill--visit{background:rgba(255,71,47,.14);color:var(--orange)}
+.hist-kind-pill--rem{background:rgba(139,92,246,.12);color:#5b21b6}
+.hist-bu-tag{font-size:10px;font-weight:700;color:var(--cardamomo);background:var(--zimbro);padding:3px 7px;border-radius:6px;border:1px solid var(--gergelim)}
+.hist-card-meta{font-size:12px;color:var(--cravo);font-weight:600;margin-bottom:2px}
+.hist-meta-sep{margin:0 .35em;opacity:.45}
+.hist-snippet{font-size:12px;color:var(--cardamomo);line-height:1.45;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hist-snippet--empty{font-style:italic;opacity:.85;margin-top:6px}
 .vtop{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .vdate{font-size:11px;color:var(--cardamomo);font-weight:500}
 .vres{font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px}
@@ -263,7 +277,7 @@ body.auth-screen-open{overflow:hidden!important}
 .vobs{font-size:12px;color:var(--cardamomo);margin-top:4px;line-height:1.5}
 .hist-item{cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .hist-item:active{opacity:.92}
-.hist-tap-hint{font-size:10px;color:var(--cardamomo);margin-top:8px;opacity:.85}
+.hist-tap-hint{font-size:10px;color:var(--cardamomo);margin-top:6px;opacity:.85}
 .vlem{background:rgba(139,92,246,.12)!important;color:#5b21b6!important}
 .hist-detail-body{padding:8px 20px 24px}
 .hd-block{display:flex;flex-direction:column;gap:4px;padding:12px 0;border-bottom:1px solid var(--zimbro)}
