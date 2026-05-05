@@ -1414,6 +1414,17 @@ function getCliById(id) {
   return DB.find((c) => String(c.id) === String(id));
 }
 
+/** Telas só de staff (admin): largura total, sem header/nav do app vendedor. */
+function setAdminFullscreenShell(on) {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.classList.toggle('app-admin-full', !!on);
+}
+
+function isAdminStaffScreen(id) {
+  return id === 'admin' || id === 'route-plan';
+}
+
 function goScr(s) {
   const om = document.getElementById('ov-more');
   if (om) om.classList.remove('on');
@@ -1423,6 +1434,7 @@ function goScr(s) {
   if (scr) scr.classList.add('on');
   const ni = document.getElementById('ni-' + s);
   if (ni) ni.classList.add('on');
+  setAdminFullscreenShell(isAdminStaffScreen(s));
   closePopup();
   if (s === 'map') {
     setTimeout(function () {
