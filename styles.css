@@ -34,6 +34,20 @@ body.auth-screen-open{overflow:hidden!important}
 #app.app-admin-full .admin-wrap{max-width:560px;margin:0 auto}
 #app.app-admin-full #scr-route-plan{padding-left:env(safe-area-inset-left,0);padding-right:env(safe-area-inset-right,0)}
 #app.app-admin-full .route-plan-wrap{padding-bottom:max(12px, env(safe-area-inset-bottom,0))}
+#app.app-admin-full #scr-bulk-import{padding-left:env(safe-area-inset-left,0);padding-right:env(safe-area-inset-right,0);padding-bottom:calc(24px + env(safe-area-inset-bottom,0))}
+.bulk-import-wrap{max-width:640px;margin:0 auto}
+.bulk-import-dhdr{height:auto;min-height:var(--hdr);padding:10px 16px}
+.bulk-import-body{padding:18px 20px 0}
+.bulk-import-lead{font-size:13px;color:var(--cardamomo);line-height:1.45;margin:0 0 16px}
+.bulk-import-actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.bulk-dl-btn{width:100%;min-height:48px}
+.bulk-file-lbl{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;font-size:15px;font-weight:700;cursor:pointer;text-align:center}
+.bulk-file-lbl--secondary{background:var(--white);color:var(--cravo);border:1.5px solid var(--gergelim)}
+.bulk-file-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.bulk-file-name{font-size:12px;color:var(--cardamomo);margin:8px 0 0;min-height:1.2em}
+.bulk-import-log{margin-top:16px;padding:12px 14px;background:var(--white);border:1px solid var(--gergelim);border-radius:12px;font-size:12px;line-height:1.5;max-height:min(40vh,280px);overflow-y:auto;-webkit-overflow-scrolling:touch;white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,monospace;color:var(--cravo)}
+.bulk-log-ok{color:var(--cravo)}
+.bulk-log-err{color:var(--red-err)}
 
 .hdr{height:var(--hdr);background:var(--dark);display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;z-index:20}
 .hdr-logo{font-family:'Rethink Sans',sans-serif;font-weight:700;font-size:22px;color:var(--orange);letter-spacing:-.3px;line-height:1}

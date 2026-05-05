@@ -295,6 +295,16 @@ function mapClientRow(row) {
     lat: row.lat != null ? String(row.lat) : '',
     lng: row.lng != null ? String(row.lng) : '',
     obs: row.obs || '',
+    ultimo_vendedor_nome: row.ultimo_vendedor_nome || '',
+    tipo_cozinha: row.tipo_cozinha || '',
+    recencia_cliente: row.recencia_cliente || '',
+    limite_aprovado: row.limite_aprovado || '',
+    proprietario_nome: row.proprietario_nome || '',
+    prazo_pagamento: row.prazo_pagamento || '',
+    metodo_pagamento: row.metodo_pagamento || '',
+    ultimo_pedido_info: row.ultimo_pedido_info || '',
+    tipo_do_estabelecimento: row.tipo_do_estabelecimento || '',
+    origem_lead: row.origem_lead || '',
     visitas: visitas,
     lembretes: lembretes,
     created_at: row.created_at || null,
@@ -547,7 +557,7 @@ function notifySupabaseListLoadError(msg, silent) {
 
 /** Mesma lista de colunas usada em loadClientsFromSupabase (visitas + lembretes aninhados). */
 const ESTABLISHMENT_SELECT_WITH_VISITS =
-  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,business_unit,sax_sold,sax_sale_reasons,sax_no_sale_reasons,sax_decisor_name,sax_decisor_contact,sax_best_contact_time,sax_photo_fachada_url,sax_photo_cardapio_url,sax_obs_extra,created_at),reminders(id,remind_at,notes,status,created_at)';
+  'id,cnpj_normalized,cnpj_display,nome,tipo,status,tel,email_cliente,rua,num,comp,bairro,cidade,estado,cep,lat,lng,obs,ultimo_vendedor_nome,tipo_cozinha,recencia_cliente,limite_aprovado,proprietario_nome,prazo_pagamento,metodo_pagamento,ultimo_pedido_info,tipo_do_estabelecimento,origem_lead,created_at,updated_at,created_by,updated_by,visits(id,visit_date,result,rep_name,obs,cel_comprador,nome_comprador,tam_estab,tipo_estab_chip,business_unit,sax_sold,sax_sale_reasons,sax_no_sale_reasons,sax_decisor_name,sax_decisor_contact,sax_best_contact_time,sax_photo_fachada_url,sax_photo_cardapio_url,sax_obs_extra,created_at),reminders(id,remind_at,notes,status,created_at)';
 
 function refreshOpenClientPickers() {
   const ovLem = document.getElementById('ov-lem');
@@ -922,10 +932,12 @@ async function loadMyProfile() {
 
 function updateAdminEntry() {
   const btn = document.getElementById('more-admin');
+  const bulk = document.getElementById('more-bulk-import');
   const rp = document.getElementById('more-route-plan');
   const cardAdm = document.getElementById('more-card-admin');
   const show = currentProfile && currentProfile.role === 'admin';
   if (btn) btn.style.display = show ? '' : 'none';
+  if (bulk) bulk.style.display = show ? '' : 'none';
   if (rp) rp.style.display = show ? '' : 'none';
   if (cardAdm) cardAdm.style.display = show ? '' : 'none';
   updateSellerRoutesMenu();
@@ -1212,6 +1224,446 @@ function goScrFromRoutePlan() {
   goBackFromRoutePlan();
 }
 
+function openBulkImportTab() {
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    toast('Acesso restrito a administradores');
+    return;
+  }
+  prevScr = document.querySelector('.scr.on')?.id?.replace('scr-', '') || 'ana';
+  goScr('bulk-import');
+}
+
+function goScrFromBulkImport() {
+  goScr(prevScr || 'ana');
+}
+
+/** Cabeçalhos da planilha → campos internos (acentos opcionais). */
+var BULK_HEADER_MAP = {
+  cnpj: 'cnpj',
+  nome: 'nome',
+  tipo: 'tipo',
+  telefone: 'tel',
+  'e-mail': 'email_cliente',
+  email: 'email_cliente',
+  rua: 'rua',
+  numero: 'num',
+  número: 'num',
+  complemento: 'comp',
+  bairro: 'bairro',
+  cidade: 'cidade',
+  estado: 'estado',
+  cep: 'cep',
+  latitude: 'lat',
+  longitude: 'lng',
+  observacoes: 'obs',
+  observações: 'obs',
+  'nome do ultimo vendedor': 'ultimo_vendedor_nome',
+  'ultimo vendedor': 'ultimo_vendedor_nome',
+  'tipo de cozinha': 'tipo_cozinha',
+  'recencia do cliente': 'recencia_cliente',
+  'limite aprovado': 'limite_aprovado',
+  'nome do proprietario': 'proprietario_nome',
+  'nome proprietario': 'proprietario_nome',
+  'prazo de pagamento': 'prazo_pagamento',
+  'metodo de pagamento': 'metodo_pagamento',
+  'informacoes do ultimo pedido': 'ultimo_pedido_info',
+  'info ultimo pedido': 'ultimo_pedido_info',
+  'tipo do estabelecimento': 'tipo_do_estabelecimento',
+  'origem do lead': 'origem_lead',
+  'id vendedor': '_seller_user_id',
+  'uuid vendedor': '_seller_user_id',
+  'vendedor id': '_seller_user_id',
+  'email vendedor': '_seller_email',
+  'e-mail vendedor': '_seller_email',
+  'email do vendedor': '_seller_email',
+};
+
+function bulkNormalizeHeaderKey(cell) {
+  var s = String(cell == null ? '' : cell)
+    .trim()
+    .toLowerCase();
+  s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function bulkCellToString(v) {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number' && !Number.isNaN(v)) {
+    if (Number.isInteger(v) && Math.abs(v) < 1e15) return String(v);
+    return String(v);
+  }
+  return String(v).trim();
+}
+
+function bulkNormalizeSellerUuid(cell) {
+  var s = bulkCellToString(cell).trim().toLowerCase();
+  if (!s) return '';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(s)) return s;
+  var hex = s.replace(/-/g, '');
+  if (hex.length === 32 && /^[0-9a-f]+$/.test(hex)) {
+    return (
+      hex.slice(0, 8) +
+      '-' +
+      hex.slice(8, 12) +
+      '-' +
+      hex.slice(12, 16) +
+      '-' +
+      hex.slice(16, 20) +
+      '-' +
+      hex.slice(20, 32)
+    );
+  }
+  return '';
+}
+
+function resolveBulkSellerForRow(row, fallbackDropdownId) {
+  var idMap = window.__bulkSellerById;
+  var emailMap = window.__bulkSellerByEmail;
+  var u = bulkNormalizeSellerUuid(row._seller_user_id);
+  if (u && idMap && idMap[u]) return idMap[u];
+  var em = bulkCellToString(row._seller_email).trim().toLowerCase();
+  if (em && emailMap && emailMap[em]) return emailMap[em];
+  var fb = fallbackDropdownId != null ? String(fallbackDropdownId).trim() : '';
+  return fb || '';
+}
+
+async function loadBulkImportSellers() {
+  const sel = document.getElementById('bulk-import-seller');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Carregando…</option>';
+  window.__bulkSellerByEmail = null;
+  window.__bulkSellerById = null;
+  window.__bulkImportParsedRows = null;
+  var fin = document.getElementById('bulk-import-file');
+  if (fin) fin.value = '';
+  var fn = document.getElementById('bulk-import-fname');
+  if (fn) fn.textContent = '';
+  var run = document.getElementById('bulk-import-run');
+  if (run) run.disabled = true;
+  var log = document.getElementById('bulk-import-log');
+  if (log) log.innerHTML = '';
+  const sb = await ensureSupabase();
+  if (!sb || sessionStorage.getItem('cayena_offline') === '1') {
+    sel.innerHTML = '<option value="">Indisponível (login na nuvem)</option>';
+    return;
+  }
+  const { data, error } = await sb.from('profiles').select('id, full_name').eq('role', 'seller').order('full_name');
+  if (error) {
+    sel.innerHTML = '<option value="">Erro ao listar vendedores</option>';
+    toast(error.message);
+    return;
+  }
+  const rows = data || [];
+  if (!rows.length) {
+    sel.innerHTML = '<option value="">Nenhum vendedor cadastrado</option>';
+    return;
+  }
+  sel.innerHTML =
+    '<option value="">Vendedor padrão (se a linha não tiver ID/e-mail)</option>' +
+    rows
+      .map(function (r) {
+        return (
+          '<option value="' +
+          escapeHtml(String(r.id)) +
+          '">' +
+          escapeHtml((r.full_name && String(r.full_name).trim()) || String(r.id).slice(0, 8) + '…') +
+          '</option>'
+        );
+      })
+      .join('');
+
+  window.__bulkSellerByEmail = Object.create(null);
+  window.__bulkSellerById = Object.create(null);
+  try {
+    const {
+      data: { session },
+    } = await sb.auth.getSession();
+    if (session && session.access_token) {
+      const res = await fetch('/api/admin-list-sellers', {
+        headers: { Authorization: 'Bearer ' + session.access_token },
+      });
+      const j = await res.json().catch(function () {
+        return {};
+      });
+      if (res.ok && j.sellers && j.sellers.length) {
+        for (var i = 0; i < j.sellers.length; i++) {
+          var s = j.sellers[i];
+          if (!s || !s.id) continue;
+          var sid = String(s.id);
+          window.__bulkSellerById[sid.toLowerCase()] = sid;
+          var mail = (s.email && String(s.email).trim().toLowerCase()) || '';
+          if (mail) window.__bulkSellerByEmail[mail] = sid;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn(e);
+  }
+}
+
+function downloadBulkClientTemplate() {
+  if (typeof XLSX === 'undefined') {
+    toast('Biblioteca de planilha não carregou. Atualize a página.');
+    return;
+  }
+  var headers = [
+    'CNPJ',
+    'Nome',
+    'Tipo',
+    'Telefone',
+    'E-mail',
+    'Rua',
+    'Número',
+    'Complemento',
+    'Bairro',
+    'Cidade',
+    'Estado',
+    'CEP',
+    'Latitude',
+    'Longitude',
+    'Observações',
+    'Nome do último vendedor',
+    'Tipo de cozinha',
+    'Recência do cliente',
+    'Limite aprovado',
+    'Nome do proprietário',
+    'Prazo de pagamento',
+    'Método de pagamento',
+    'Informações do último pedido',
+    'Tipo do estabelecimento',
+    'Origem do lead',
+    'ID vendedor',
+    'E-mail vendedor',
+  ];
+  var example = [
+    '12345678000199',
+    'Exemplo Ltda',
+    'Restaurante',
+    '(11) 99999-9999',
+    'contato@exemplo.com',
+    'Rua das Flores',
+    '100',
+    'Sala 2',
+    'Centro',
+    'São Paulo',
+    'SP',
+    '01310100',
+    '',
+    '',
+    'Texto livre',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+  ];
+  var ws = XLSX.utils.aoa_to_sheet([headers, example]);
+  ws['!cols'] = headers.map(function () {
+    return { wch: 14 };
+  });
+  if (ws['A1']) ws['A1'].z = '@';
+  if (ws['L1']) ws['L1'].z = '@';
+  var idCol = XLSX.utils.encode_col(headers.length - 2);
+  if (ws[idCol + '1']) ws[idCol + '1'].z = '@';
+  if (ws[idCol + '2']) ws[idCol + '2'].z = '@';
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+  XLSX.writeFile(wb, 'cayena-modelo-clientes.xlsx');
+  toast('Modelo baixado', true);
+}
+
+function onBulkImportFilePick() {
+  var inp = document.getElementById('bulk-import-file');
+  var fn = document.getElementById('bulk-import-fname');
+  var run = document.getElementById('bulk-import-run');
+  window.__bulkImportParsedRows = null;
+  if (run) run.disabled = true;
+  if (!inp || !inp.files || !inp.files[0]) {
+    if (fn) fn.textContent = '';
+    return;
+  }
+  var file = inp.files[0];
+  if (fn) fn.textContent = file.name;
+  if (typeof XLSX === 'undefined') {
+    toast('Biblioteca de planilha não carregou. Atualize a página.');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function (ev) {
+    try {
+      var buf = ev.target && ev.target.result;
+      var wb = XLSX.read(buf, { type: 'array' });
+      var sh = wb.SheetNames[0];
+      if (!sh) {
+        toast('Planilha vazia');
+        return;
+      }
+      var ws = wb.Sheets[sh];
+      var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      if (!aoa || aoa.length < 2) {
+        toast('Precisa de cabeçalho + ao menos uma linha de dados');
+        return;
+      }
+      var headerRow = aoa[0];
+      var colToField = {};
+      for (var j = 0; j < headerRow.length; j++) {
+        var key = bulkNormalizeHeaderKey(headerRow[j]);
+        var field = BULK_HEADER_MAP[key];
+        if (field) colToField[j] = field;
+      }
+      var hasCnpj = false;
+      var hasNome = false;
+      for (var c in colToField) {
+        if (colToField[c] === 'cnpj') hasCnpj = true;
+        if (colToField[c] === 'nome') hasNome = true;
+      }
+      if (!hasCnpj || !hasNome) {
+        toast('A planilha precisa das colunas CNPJ e Nome (use o modelo)');
+        return;
+      }
+      var out = [];
+      for (var r = 1; r < aoa.length; r++) {
+        var row = aoa[r];
+        if (!row || !row.length) continue;
+        var obj = {};
+        for (var k in colToField) {
+          var fi = parseInt(k, 10);
+          var f = colToField[k];
+          obj[f] = bulkCellToString(row[fi]);
+        }
+        var cnpjRaw = obj.cnpj || '';
+        var norm = normalizeCnpjDigits(cnpjRaw);
+        if (norm.length < 14) continue;
+        out.push(obj);
+      }
+      if (!out.length) {
+        toast('Nenhuma linha com CNPJ válido (14 dígitos)');
+        return;
+      }
+      window.__bulkImportParsedRows = out;
+      if (run) run.disabled = false;
+      toast(String(out.length) + ' linha(s) reconhecida(s)', true);
+    } catch (err) {
+      console.warn(err);
+      toast('Não foi possível ler a planilha');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function runBulkClientImport() {
+  var defaultSellerId =
+    document.getElementById('bulk-import-seller') && document.getElementById('bulk-import-seller').value;
+  var rows = window.__bulkImportParsedRows;
+  if (!rows || !rows.length) {
+    toast('Escolha uma planilha válida primeiro');
+    return;
+  }
+  if (!currentProfile || currentProfile.role !== 'admin') {
+    toast('Apenas administradores');
+    return;
+  }
+  const sb = await ensureSupabase();
+  if (!sb || sessionStorage.getItem('cayena_offline') === '1') {
+    toast('Faça login na nuvem para importar');
+    return;
+  }
+  var log = document.getElementById('bulk-import-log');
+  var run = document.getElementById('bulk-import-run');
+  if (run) {
+    run.disabled = true;
+    run.textContent = 'Importando…';
+  }
+  var ok = 0;
+  var fail = 0;
+  var lines = [];
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var sellerId = resolveBulkSellerForRow(row, defaultSellerId);
+    if (!sellerId) {
+      fail += 1;
+      lines.push(
+        'Linha ' +
+          (i + 2) +
+          ': vendedor não definido (colunas ID vendedor / E-mail vendedor na planilha, ou vendedor padrão)'
+      );
+      continue;
+    }
+    var norm = normalizeCnpjDigits(row.cnpj);
+    if (norm.length !== 14) {
+      fail += 1;
+      lines.push('Linha ' + (i + 2) + ': CNPJ inválido');
+      continue;
+    }
+    var nome = (row.nome || '').trim();
+    if (!nome) {
+      fail += 1;
+      lines.push('Linha ' + (i + 2) + ': Nome obrigatório');
+      continue;
+    }
+    var lat = parseFloat(row.lat);
+    var lng = parseFloat(row.lng);
+    if (!Number.isFinite(lat)) lat = null;
+    if (!Number.isFinite(lng)) lng = null;
+    var disp = formatCnpjDisplay(norm) || row.cnpj;
+    const { error } = await sb.rpc('register_establishment_for_seller', {
+      p_seller_user_id: sellerId,
+      p_cnpj_normalized: norm,
+      p_cnpj_display: disp,
+      p_nome: nome,
+      p_tipo: (row.tipo || '').trim() || null,
+      p_status: 'novo',
+      p_tel: (row.tel || '').trim() || null,
+      p_email_cliente: (row.email_cliente || '').trim() || null,
+      p_rua: (row.rua || '').trim() || null,
+      p_num: (row.num || '').trim() || null,
+      p_comp: (row.comp || '').trim() || null,
+      p_bairro: (row.bairro || '').trim() || null,
+      p_cidade: (row.cidade || '').trim() || null,
+      p_estado: (row.estado || '').trim() || 'SP',
+      p_cep: (row.cep || '').trim() || null,
+      p_lat: lat,
+      p_lng: lng,
+      p_obs: (row.obs || '').trim() || null,
+      p_ultimo_vendedor_nome: (row.ultimo_vendedor_nome || '').trim() || null,
+      p_tipo_cozinha: (row.tipo_cozinha || '').trim() || null,
+      p_recencia_cliente: (row.recencia_cliente || '').trim() || null,
+      p_limite_aprovado: (row.limite_aprovado || '').trim() || null,
+      p_proprietario_nome: (row.proprietario_nome || '').trim() || null,
+      p_prazo_pagamento: (row.prazo_pagamento || '').trim() || null,
+      p_metodo_pagamento: (row.metodo_pagamento || '').trim() || null,
+      p_ultimo_pedido_info: (row.ultimo_pedido_info || '').trim() || null,
+      p_tipo_do_estabelecimento: (row.tipo_do_estabelecimento || '').trim() || null,
+      p_origem_lead: (row.origem_lead || '').trim() || null,
+    });
+    if (error) {
+      fail += 1;
+      lines.push('Linha ' + (i + 2) + ': ' + error.message);
+    } else {
+      ok += 1;
+    }
+  }
+  if (log) {
+    log.textContent =
+      'Concluído: ' + ok + ' importado(s), ' + fail + ' erro(s).\n' + (lines.length ? lines.join('\n') : '');
+  }
+  if (run) {
+    run.disabled = false;
+    run.textContent = 'Importar para o vendedor';
+  }
+  if (ok > 0) {
+    await loadClientsFromSupabase({ silent: true });
+    toast('✓ ' + ok + ' cliente(s) processado(s)', true);
+  }
+}
+
 async function adminCreateSeller() {
   const msg = document.getElementById('adm-msg');
   if (msg) msg.textContent = '';
@@ -1422,7 +1874,7 @@ function setAdminFullscreenShell(on) {
 }
 
 function isAdminStaffScreen(id) {
-  return id === 'admin' || id === 'route-plan';
+  return id === 'admin' || id === 'route-plan' || id === 'bulk-import';
 }
 
 function goScr(s) {
@@ -1448,6 +1900,11 @@ function goScr(s) {
         showRoutePlanHub();
       });
     }, 150);
+  }
+  if (s === 'bulk-import') {
+    setTimeout(function () {
+      loadBulkImportSellers();
+    }, 0);
   }
   if (s === 'ana') {
     renderDashboard();
@@ -3826,6 +4283,16 @@ async function subCad() {
       p_lat: parseFloat(lat),
       p_lng: parseFloat(lng),
       p_obs: obs,
+      p_ultimo_vendedor_nome: null,
+      p_tipo_cozinha: null,
+      p_recencia_cliente: null,
+      p_limite_aprovado: null,
+      p_proprietario_nome: null,
+      p_prazo_pagamento: null,
+      p_metodo_pagamento: null,
+      p_ultimo_pedido_info: null,
+      p_tipo_do_estabelecimento: null,
+      p_origem_lead: null,
     });
     if (error) {
       toast('Erro ao salvar: ' + error.message);

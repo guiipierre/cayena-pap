@@ -6,7 +6,7 @@
 <title>cayena PAP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rethink+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=43">
+<link rel="stylesheet" href="styles.css?v=45">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 </head>
 <body>
@@ -203,6 +203,36 @@
       </div>
     </div>
 
+    <div class="scr" id="scr-bulk-import">
+      <div class="bulk-import-wrap">
+        <div class="dhdr bulk-import-dhdr">
+          <div class="backbtn" onclick="goScrFromBulkImport()" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div class="route-plan-head-text">
+            <div class="route-plan-kicker">Admin</div>
+            <h1 class="route-plan-title">Importar clientes</h1>
+          </div>
+        </div>
+        <div class="bulk-import-body">
+          <p class="bulk-import-lead">Baixe o modelo XLSX, preencha uma linha por cliente e envie. Use as colunas <strong>ID vendedor</strong> ou <strong>E-mail vendedor</strong> para direcionar cada linha a um vendedor; se estiverem vazias, vale o <strong>vendedor padrão</strong> abaixo. CNPJ já existente atualiza dados e mantém vínculos.</p>
+          <div class="fg"><div class="flbl">Vendedor padrão (opcional se a planilha tiver ID ou e-mail do vendedor)</div>
+            <select class="fi" id="bulk-import-seller" style="height:52px" aria-label="Vendedor">
+              <option value="">Carregando…</option>
+            </select>
+          </div>
+          <div class="bulk-import-actions">
+            <button type="button" class="btnp bulk-dl-btn" onclick="downloadBulkClientTemplate()">Baixar modelo (.xlsx)</button>
+            <label class="bulk-file-lbl btnp bulk-file-lbl--secondary">
+              <input type="file" id="bulk-import-file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="bulk-file-input" onchange="onBulkImportFilePick()">
+              Escolher planilha
+            </label>
+          </div>
+          <p class="bulk-file-name" id="bulk-import-fname" role="status"></p>
+          <button type="button" class="btnp" style="width:100%;margin-top:6px" id="bulk-import-run" onclick="runBulkClientImport()" disabled>Importar para o vendedor</button>
+          <div class="bulk-import-log" id="bulk-import-log" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
+
     <div class="scr" id="scr-map">
       <div class="mwrap">
         <div class="map-top-stack">
@@ -372,6 +402,7 @@
     <div class="more-list">
       <div class="more-card more-card--admin" id="more-card-admin" style="display:none">
         <button type="button" class="more-item more-item--ico" id="more-admin" onclick="closeOv('ov-more');openAdminTab()"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><span class="more-item-text">Criar novo acesso</span></button>
+        <button type="button" class="more-item more-item--ico" id="more-bulk-import" onclick="closeOv('ov-more');openBulkImportTab()"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span><span class="more-item-text">Importar clientes (planilha)</span></button>
         <button type="button" class="more-item more-item--ico" id="more-route-plan" onclick="closeOv('ov-more');openRoutePlannerTab()"><span class="more-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="more-item-text">Planejar rotas</span></button>
       </div>
       <div class="more-card">
@@ -658,6 +689,7 @@
 <div class="toast" id="toastel"></div>
 <script src="supabase-config.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="pap-app.js?v=43" defer></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="pap-app.js?v=47" defer></script>
 </body>
 </html>
