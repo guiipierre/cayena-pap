@@ -1927,6 +1927,41 @@ function goBack() {
   goScr(prevScr);
 }
 
+/** Uma linha label/valor na aba Campos adicionais (usa escapeHtml definido mais abaixo no arquivo). */
+function clientCamposAdicionaisRow(label, value, opts) {
+  opts = opts || {};
+  var raw = value != null ? String(value).trim() : '';
+  var isLong = opts.long === true || raw.length > 140;
+  var vHtml = raw
+    ? '<span class="iv' + (isLong ? ' iv-long' : '') + '">' + escapeHtml(raw) + '</span>'
+    : '<span class="iv iv-empty">—</span>';
+  return (
+    '<div class="irow">' +
+    '<span class="il">' +
+    escapeHtml(label) +
+    '</span>' +
+    vHtml +
+    '</div>'
+  );
+}
+
+/** HTML da aba Campos adicionais (campos comerciais do estabelecimento). */
+function buildClientCamposAdicionaisHtml(c) {
+  if (!c) return '';
+  return (
+    clientCamposAdicionaisRow('Nome do último vendedor', c.ultimo_vendedor_nome) +
+    clientCamposAdicionaisRow('Tipo de cozinha', c.tipo_cozinha) +
+    clientCamposAdicionaisRow('Recência do cliente', c.recencia_cliente) +
+    clientCamposAdicionaisRow('Limite aprovado', c.limite_aprovado) +
+    clientCamposAdicionaisRow('Nome do proprietário', c.proprietario_nome) +
+    clientCamposAdicionaisRow('Prazo de pagamento', c.prazo_pagamento) +
+    clientCamposAdicionaisRow('Método de pagamento', c.metodo_pagamento) +
+    clientCamposAdicionaisRow('Informações do último pedido', c.ultimo_pedido_info, { long: true }) +
+    clientCamposAdicionaisRow('Tipo do estabelecimento', c.tipo_do_estabelecimento) +
+    clientCamposAdicionaisRow('Origem do lead', c.origem_lead)
+  );
+}
+
 function applyClientDetailToDom(c) {
   document.getElementById('dname').textContent = c.nome;
   const b = document.getElementById('dbadge');
@@ -1977,6 +2012,10 @@ function applyClientDetailToDom(c) {
         c.obs +
         '</span></div>'
       : '');
+  var dcCampos = document.getElementById('dc-campos');
+  if (dcCampos) {
+    dcCampos.innerHTML = buildClientCamposAdicionaisHtml(c);
+  }
   buildHist(c);
 }
 
